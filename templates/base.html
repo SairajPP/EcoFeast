@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoodConnect AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 font-sans leading-normal tracking-normal flex flex-col min-h-screen">
+
+    <nav class="bg-gradient-to-r from-green-700 to-green-900 text-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            
+            <a href="/" class="font-bold text-2xl flex items-center gap-2 hover:text-green-200 transition">
+                <i class="fas fa-leaf"></i> FoodConnect
+            </a>
+
+            <div class="flex items-center gap-6">
+                
+                {% if user.is_authenticated %}
+                    
+                    {% if user.role == 'ngo' %}
+                        <a href="{% url 'ngo-dashboard-ui' %}" class="hover:text-green-200 font-semibold flex items-center gap-2">
+                            <i class="fas fa-list"></i> Available Food
+                        </a>
+                        <a href="{% url 'map-dashboard' %}" class="hover:text-green-200 font-semibold flex items-center gap-2">
+                            <i class="fas fa-map-marked-alt"></i> Live Map
+                        </a>
+                    
+                    {% elif user.role == 'donor' %}
+                        <a href="{% url 'donor-dashboard-ui' %}" class="hover:text-green-200 font-semibold flex items-center gap-2">
+                            <i class="fas fa-plus-circle"></i> Donate Now
+                        </a>
+                    {% endif %}
+
+                    <div class="flex items-center gap-3 border-l border-green-600 pl-6">
+                        <span class="text-sm text-green-200">Hello, <b>{{ user.username }}</b></span>
+                        <a href="{% url 'logout-ui' %}" class="bg-red-500 hover:bg-red-600 text-white text-sm font-bold py-2 px-4 rounded transition shadow">
+                            Logout
+                        </a>
+                    </div>
+
+                {% else %}
+                    <a href="{% url 'login-ui' %}" class="hover:text-green-200 font-semibold">Login</a>
+                    <a href="{% url 'register-ui' %}" class="bg-white text-green-800 font-bold py-2 px-5 rounded-full hover:bg-gray-100 transition shadow">
+                        Sign Up
+                    </a>
+                {% endif %}
+
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto mt-8 p-4 flex-grow">
+        {% if messages %}
+            <div class="mb-6 space-y-2">
+                {% for message in messages %}
+                    <div class="p-4 rounded-lg shadow-md 
+                        {% if message.tags == 'error' %} bg-red-100 text-red-800 border border-red-200 
+                        {% else %} bg-green-100 text-green-800 border border-green-200 {% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer class="bg-gray-800 text-gray-400 py-6 text-center mt-auto">
+        <p class="text-sm">&copy; 2026 FoodConnect AI. Developed for Final Year Project.</p>
+    </footer>
+
+    <script>
+        // Global Helper for CSRF
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>

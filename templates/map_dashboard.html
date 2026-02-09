@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<div class="container mx-auto">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-3xl font-bold text-gray-800">🗺️ Live Food Map</h2>
+        <a href="{% url 'ngo-dashboard-ui' %}" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">Back to List</a>
+    </div>
+
+    <div id="map" class="w-full h-[600px] rounded-lg shadow-xl border border-gray-300"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    async function initMap() {
+        // 1. Get My Location
+        const myLat = {{ user.latitude|default:"19.0760" }};
+        const myLng = {{ user.longitude|default:"72.8777" }};
+
+        // Initialize Map
+        var map = L.map('map').setView([myLat, myLng], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19, attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // 2. BIGGER "YOU" MARKER (Blue)
+        var homeIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/markers-default/blue-2x.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [40, 65],     // <--- SUPER BIG for You
+            iconAnchor: [20, 65],
+            popupAnchor: [1, -60],
+            shadowSize: [65, 65]
+        });
+
+        L.marker([myLat, myLng], {icon: homeIcon}).addTo(map)
+            .bindPopup("<b>🏠 YOU (NGO HQ)</b><br>Start here")
+            .openPopup();
+
+        // 3. BIGGER FOOD MARKERS
+        // We define the size once here for consistency
+        const foodIconSize = [35, 55]; 
+        const foodIconAnchor = [17, 55];
+        const foodPopupAnchor = [1, -50];
+
+        var freshIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/markers-default/green-2x.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: foodIconSize,   // <--- BIGGER
+            iconAnchor: foodIconAnchor,
+            popupAnchor: foodPopupAnchor,
+            shadowSize: [55, 55]
+        });
+
+        var riskyIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/markers-default/red-2x.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: foodIconSize,   // <--- BIGGER
+            iconAnchor: foodIconAnchor,
+            popupAnchor: foodPopupAnchor,
+            shadowSize: [55, 55]
+        });
+
+        var mediumIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/markers-default/gold-2x.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: foodIconSize,   // <--- BIGGER
+            iconAnchor: foodIconAnchor,
+            popupAnchor: foodPopupAnchor,
+            shadowSize: [55, 55]
+        });
+
+        // 4. Fetch Donations and Plot
+        try {
+            const response = await fetch('/api/donations/list/');
+            const donations = await response.json();
+
+            donations.forEach(d => {
+                if (d.lat && d.lng && d.status === 'pending') {
+                    
+                    // Choose Icon based on freshness
+                    let iconToUse = riskyIcon;
+                    if (d.freshness_score >= 70) iconToUse = freshIcon;
+                    else if (d.freshness_score >= 40) iconToUse = mediumIcon;
+
+                    const popupContent = `
+                        <div class="p-3 min-w-[150px]">
+                            <h3 class="font-bold text-lg text-gray-800">${d.food_name}</h3>
+                            <div class="text-sm text-gray-600 mb-2">
+                                <p>📦 <b>${d.quantity_kg}kg</b> from ${d.donor_name}</p>
+                                <p>🌡️ ${d.freshness_label} (${Math.round(d.freshness_score)}%)</p>
+                            </div>
+                            <button onclick="claimDonation(${d.id})" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-1 px-2 rounded shadow">
+                                Claim Now
+                            </button>
+                        </div>
+                    `;
+
+                    L.marker([d.lat, d.lng], {icon: iconToUse})
+                        .addTo(map)
+                        .bindPopup(popupContent);
+                }
+            });
+
+        } catch (error) {
+            console.error("Map Error:", error);
+        }
+    }
+
+    // Keep existing claim logic
+    async function claimDonation(id) {
+        if(!confirm("Pick up this order?")) return;
+        const response = await fetch(`/api/donations/update/${id}/`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+            body: JSON.stringify({ status: 'claimed' })
+        });
+        if(response.ok) { alert("Claimed!"); location.reload(); }
+    }
+
+    initMap();
+</script>
+{% endblock %}

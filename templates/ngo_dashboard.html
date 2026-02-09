@@ -1,0 +1,304 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<div class="max-w-6xl mx-auto relative">
+    
+    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 flex justify-between items-center border-l-4 border-green-600">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">👋 Hello, {{ user.username }}</h1>
+            <p class="text-gray-500">Ready to save some food today?</p>
+        </div>
+        <div class="text-right">
+            <div class="text-3xl font-bold text-green-600" id="total-saved">0 kg</div>
+            <div class="text-xs uppercase tracking-wide text-gray-400 font-bold">Total Food Rescued</div>
+        </div>
+    </div>
+
+    <div class="flex border-b border-gray-200 mb-6 bg-white rounded-t-lg shadow-sm">
+        <button onclick="switchTab('find')" id="tab-find" class="tab-btn flex-1 px-6 py-4 text-green-600 border-b-2 border-green-600 font-bold hover:bg-green-50 transition">
+            🔍 Find Food (Available)
+        </button>
+        <button onclick="switchTab('pickups')" id="tab-pickups" class="tab-btn flex-1 px-6 py-4 text-gray-500 font-medium hover:bg-green-50 hover:text-green-600 transition">
+            🚚 Live Pickups (Active)
+        </button>
+        <button onclick="switchTab('history')" id="tab-history" class="tab-btn flex-1 px-6 py-4 text-gray-500 font-medium hover:bg-green-50 hover:text-green-600 transition">
+            📜 Claim History
+        </button>
+        <button onclick="switchTab('profile')" id="tab-profile" class="tab-btn flex-1 px-6 py-4 text-gray-500 font-medium hover:bg-green-50 hover:text-green-600 transition">
+            👤 My Profile
+        </button>
+    </div>
+
+    <div id="view-find" class="tab-content">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-gray-700">Available Donations</h2>
+            <div class="space-x-2">
+                <button onclick="loadData()" class="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300">🔄 Refresh</button>
+                <a href="{% url 'map-dashboard' %}" class="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded hover:bg-blue-200">🌍 Map View</a>
+            </div>
+        </div>
+        <div id="donations-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <p class="text-gray-500 col-span-2 text-center py-10">Scanning for food...</p>
+        </div>
+    </div>
+
+    <div id="view-pickups" class="tab-content hidden">
+        <h2 class="text-xl font-bold text-gray-700 mb-4">🚚 Your Active Pickups</h2>
+        <div id="pickups-grid" class="space-y-4"></div>
+    </div>
+
+    <div id="view-history" class="tab-content hidden">
+        <h2 class="text-xl font-bold text-gray-700 mb-4">📦 All Claimed Orders</h2>
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <table class="min-w-full leading-normal">
+                <thead>
+                    <tr>
+                        <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Food Item</th>
+                        <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Donor</th>
+                        <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Quantity</th>
+                        <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="history-table"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="view-profile" class="tab-content hidden">
+        <div class="bg-white rounded-lg shadow p-6 max-w-md mx-auto">
+            <div class="text-center mb-6">
+                <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">🏢</div>
+                <h2 class="text-2xl font-bold">{{ user.username }}</h2>
+                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">Verified NGO</span>
+            </div>
+            
+            <form id="ngoProfileForm" class="space-y-4 border-t pt-4">
+                <h3 class="font-bold text-gray-700">📍 Update Your HQ Location</h3>
+                <div class="flex gap-2">
+                    <input type="text" id="ngo-lat" name="latitude" value="{{ user.latitude|default:'' }}" class="w-1/2 p-2 border rounded bg-gray-50" readonly placeholder="Lat">
+                    <input type="text" id="ngo-lng" name="longitude" value="{{ user.longitude|default:'' }}" class="w-1/2 p-2 border rounded bg-gray-50" readonly placeholder="Lng">
+                </div>
+                <button type="button" onclick="getNgoLocation()" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 rounded">
+                    📍 Detect My GPS
+                </button>
+                <textarea name="address" class="w-full p-2 border rounded" placeholder="Address">{{ user.address|default:'' }}</textarea>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded">
+                    💾 Save Location
+                </button>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<div id="map-modal" class="fixed inset-0 bg-gray-900 bg-opacity-70 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col relative">
+        <button onclick="closeMap()" class="absolute top-4 right-4 z-[9999] bg-white text-red-600 font-bold p-2 rounded-full shadow hover:bg-red-50">✖ Close</button>
+        <div class="p-4 border-b bg-gray-50 rounded-t-xl">
+            <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                🚚 Route to Donor <span class="text-sm font-normal text-gray-500 ml-2">(Blue = You, Red = Donor)</span>
+            </h3>
+        </div>
+        <div id="tracking-map" class="flex-grow w-full h-full rounded-b-xl"></div>
+    </div>
+</div>
+
+<script>
+    let map = null;
+    const currentUsername = "{{ user.username }}"; 
+
+    // --- TABS LOGIC ---
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.getElementById(`view-${tabName}`).classList.remove('hidden');
+        
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('text-green-600', 'border-b-2', 'border-green-600');
+            btn.classList.add('text-gray-500');
+        });
+        const activeBtn = document.getElementById(`tab-${tabName}`);
+        activeBtn.classList.add('text-green-600', 'border-b-2', 'border-green-600');
+        activeBtn.classList.remove('text-gray-500');
+
+        if(tabName === 'find' || tabName === 'pickups' || tabName === 'history') loadData();
+    }
+
+    // --- DATA LOGIC ---
+    async function loadData() {
+        const gridFind = document.getElementById('donations-grid');
+        const gridPickups = document.getElementById('pickups-grid');
+        const tableHistory = document.getElementById('history-table');
+        const totalSavedEl = document.getElementById('total-saved');
+        let totalKg = 0;
+
+        try {
+            const response = await fetch('/api/donations/list/');
+            const data = await response.json();
+            
+            gridFind.innerHTML = '';
+            gridPickups.innerHTML = '';
+            tableHistory.innerHTML = '';
+
+            let hasPending = false;
+            let hasPickups = false;
+
+            data.forEach(d => {
+                // 1. FIND FOOD (Pending)
+                if (d.status === 'pending') {
+                    hasPending = true;
+                    let colorClass = d.freshness_score >= 70 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+                    const card = `
+                        <div class="bg-white rounded-lg shadow hover:shadow-md transition p-4 border border-gray-100">
+                            <div class="flex justify-between">
+                                <h3 class="font-bold text-lg">${d.food_name}</h3>
+                                <span class="text-xs px-2 py-1 rounded ${colorClass}">${d.freshness_label}</span>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-1">From: ${d.donor_name}</p>
+                            <p class="text-sm mt-2">📦 ${d.quantity_kg} kg • 📍 ${d.pickup_address}</p>
+                            <button onclick="claimDonation(${d.id})" class="mt-3 w-full bg-green-600 text-white text-sm font-bold py-2 rounded hover:bg-green-700 shadow">
+                                Claim Donation
+                            </button>
+                        </div>`;
+                    gridFind.innerHTML += card;
+                }
+                
+                // 🟢 FIX: USE 'recipient_details' instead of 'claimed_by_details'
+                if (d.status === 'claimed' && d.recipient_details && d.recipient_details.username === currentUsername) {
+                    hasPickups = true;
+                    totalKg += parseFloat(d.quantity_kg);
+                    
+                    // 🟢 FIX: USE 'recipient_details' for LAT/LNG
+                    const ngoLat = d.recipient_details.latitude; 
+                    const ngoLng = d.recipient_details.longitude; 
+                    const donorLat = d.lat; 
+                    const donorLng = d.lng;
+
+                    let mapBtn = '';
+                    if(ngoLat && ngoLng && donorLat && donorLng) {
+                        mapBtn = `<button onclick="openMap(${ngoLat}, ${ngoLng}, ${donorLat}, ${donorLng}, '${d.donor_name}')" class="bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-bold px-3 py-1 rounded flex items-center gap-1">
+                                    <i class="fas fa-map-marked-alt"></i> Navigate
+                                  </button>`;
+                    } else {
+                        mapBtn = `<span class="text-xs text-gray-400">Map Unavailable (Missing GPS)</span>`;
+                    }
+
+                    const card = `
+                        <div class="bg-white p-5 rounded-lg shadow border-l-4 border-blue-500 flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div>
+                                <h3 class="font-bold text-xl text-gray-800">${d.food_name}</h3>
+                                <p class="text-sm text-gray-500">Donor: <b>${d.donor_name}</b></p>
+                                <p class="text-xs text-gray-400 mt-1">${d.pickup_address}</p>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <span class="text-2xl font-bold text-green-600">${d.quantity_kg} kg</span>
+                                ${mapBtn}
+                            </div>
+                        </div>`;
+                    gridPickups.innerHTML += card;
+
+                    // History Table
+                    const row = `
+                        <tr>
+                            <td class="px-5 py-4 border-b border-gray-200 bg-white text-sm"><p class="text-gray-900 font-bold">${d.food_name}</p></td>
+                            <td class="px-5 py-4 border-b border-gray-200 bg-white text-sm"><p class="text-gray-900">${d.donor_name}</p></td>
+                            <td class="px-5 py-4 border-b border-gray-200 bg-white text-sm"><p class="text-gray-900">${d.quantity_kg} kg</p></td>
+                            <td class="px-5 py-4 border-b border-gray-200 bg-white text-sm"><span class="px-2 py-1 font-semibold text-green-900 bg-green-200 rounded-full">Collected</span></td>
+                        </tr>`;
+                    tableHistory.innerHTML += row;
+                }
+            });
+
+            totalSavedEl.innerText = totalKg.toFixed(1) + " kg";
+            if (!hasPending) gridFind.innerHTML = '<p class="text-gray-500 p-4">No pending donations found.</p>';
+            if (!hasPickups) gridPickups.innerHTML = '<p class="text-gray-500 p-4">You have not claimed any active pickups.</p>';
+
+        } catch (error) { console.error(error); }
+    }
+
+    // --- CLAIM LOGIC ---
+    async function claimDonation(id) {
+        if(!confirm("Are you sure you want to claim this? It will move to your 'Live Pickups'.")) return;
+        
+        try {
+            const response = await fetch(`/api/donations/update/${id}/`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+                body: JSON.stringify({ status: 'claimed' })
+            });
+            
+            if(response.ok) { 
+                alert("✅ Claimed Successfully! Check 'Live Pickups' tab.");
+                switchTab('pickups');
+            } else {
+                alert("Error claiming donation.");
+            }
+        } catch(e) { console.error(e); }
+    }
+
+    // --- MAP LOGIC ---
+    function openMap(myLat, myLng, targetLat, targetLng, targetName) {
+        document.getElementById('map-modal').classList.remove('hidden');
+
+        if (!map) {
+            map = L.map('tracking-map');
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        }
+        setTimeout(() => { map.invalidateSize(); }, 200);
+
+        // Clear layers
+        map.eachLayer((layer) => { if (!!layer.toGeoJSON) { map.removeLayer(layer); } });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        // ME (Blue - NGO)
+        L.marker([myLat, myLng]).addTo(map).bindPopup("<b>🏠 You (NGO HQ)</b>").openPopup();
+
+        // TARGET (Red - Donor)
+        var redIcon = new L.Icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/markers-default/red-2x.png',
+            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
+        });
+        L.marker([targetLat, targetLng], {icon: redIcon}).addTo(map).bindPopup(`<b>📍 ${targetName}</b><br>Pickup Here`);
+
+        var bounds = L.latLngBounds([[myLat, myLng], [targetLat, targetLng]]);
+        map.fitBounds(bounds, {padding: [50, 50]});
+    }
+
+    function closeMap() { document.getElementById('map-modal').classList.add('hidden'); }
+
+    // --- HELPER FOR NGO LOCATION SAVING ---
+    function getNgoLocation() {
+        navigator.geolocation.getCurrentPosition(p => {
+            document.getElementById('ngo-lat').value = p.coords.latitude;
+            document.getElementById('ngo-lng').value = p.coords.longitude;
+        });
+    }
+    document.getElementById('ngoProfileForm').addEventListener('submit', async function(e){
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(this).entries());
+        await fetch('/api/users/profile/update/', {method:'PATCH', headers:{'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')}, body:JSON.stringify(data)});
+        alert("Location Saved!");
+    });
+
+    // Helper for CSRF
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Initial Load
+    loadData();
+</script>
+{% endblock %}
