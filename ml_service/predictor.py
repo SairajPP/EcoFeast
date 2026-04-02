@@ -1,65 +1,71 @@
-import os
-import joblib
-import xgboost as xgb
 import pandas as pd
 import numpy as np
 
 class FreshnessPredictor:
-    _model = None
-    _encoders = None
-
-    @classmethod
-    def _load_artifacts(cls):
-        """Load model and encoders only once."""
-        if cls._model is None:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            model_path = os.path.join(base_dir, 'models', 'freshness_xgb.json')
-            encoder_path = os.path.join(base_dir, 'models', 'encoders.pkl')
-
-            # Load XGBoost
-            cls._model = xgb.XGBClassifier()
-            cls._model.load_model(model_path)
-            
-            # Load Encoders
-            cls._encoders = joblib.load(encoder_path)
-
-    @classmethod
     @staticmethod
     def predict(data):
-        # ... (Your existing loading code) ...
-
-        # 1. Create DataFrame for Model
-        input_df = pd.DataFrame([data])
+        """
+        Calculates Freshness Score based on Time, Temp, and Storage.
+        No .json or .pkl files required! Works instantly.
+        """
+        # 1. Start with a perfect score
+        score = 100.0
         
-        # 2. Get Base Prediction from Model
-        # (Assuming your model doesn't use 'temperature' natively yet)
-        # We drop temperature before passing to model if the model wasn't trained on it
-        model_input = input_df.drop(columns=['temperature'], errors='ignore')
+        # --- INPUTS ---
+        # Get values safely, defaulting to 0 if missing
+        hours_cooked = float(data.get('time_since_cooking_hours', 0) or 0)
+        hours_stored = float(data.get('storage_time_hours', 0) or 0)
+        temp = float(data.get('temperature', 25)) # Default 25°C
+        condition = data.get('storage_condition', 'room_temperature')
+        food_type = data.get('food_type', 'Vegetarian')
+
+        # --- SMART LOGIC RULES ---
+
+        # Rule 1: Time Decay (Food spoils over time)
+        # Lose 5 points for every hour it sits out
+        total_hours = hours_cooked + hours_stored
+        score -= (total_hours * 5)
+
+        # Rule 2: Temperature Penalty (Heat kills food) 🌡️
+        if temp > 35:
+            score -= 25  # Extreme heat penalty
+        elif temp > 30:
+            score -= 15  # Hot day penalty
+        elif temp < 10:
+            score += 5   # Bonus for cold weather (natural fridge)
+
+        # Rule 3: Storage Condition
+        if condition == 'outside' or condition == 'room_temperature':
+            # Room temp degrades faster
+            score -= 10 
+        elif condition == 'refrigerated':
+            # Fridge preserves freshness (Bonus!)
+            score += 15 
+        elif condition == 'heated':
+            # Keeping it hot is good for short term, bad for long term
+            if total_hours > 4:
+                score -= 20
+
+        # Rule 4: Food Type Sensitivity
+        if food_type == 'Non-Veg':
+            score -= 15 # Meat spoils faster than veg
+        elif food_type == 'Vegan':
+            score += 5  # Veggies last longer
+
+        # --- FINAL CALCULATIONS ---
         
-        base_score = FreshnessPredictor.model.predict(model_input)[0] # e.g., 85%
-
-        # 3. APPLY REAL-WORLD TEMPERATURE LOGIC 🌡️
-        temp = data.get('temperature', 25)
-        condition = data.get('storage_condition', 'outside')
-
-        # If food is OUTSIDE and it is HOT
-        if condition == 'room_temperature' or condition == 'outside':
-            if temp > 35:
-                base_score -= 20  # Heavy penalty for extreme heat
-            elif temp > 30:
-                base_score -= 10  # Moderate penalty for heat
-            elif temp < 10:
-                base_score += 5   # Bonus for cold weather (acts like a fridge)
-
-        # Ensure score stays 0-100
-        final_score = max(0, min(100, base_score))
-
-        # 4. Determine Label
-        if final_score > 70: label = "Fresh"
-        elif final_score > 40: label = "Moderate"
-        else: label = "Spoiled"
+        # Ensure score stays between 0 and 100
+        score = max(0, min(100, score))
+        
+        # Determine Label
+        if score >= 75:
+            label = "Fresh 🟢"
+        elif score >= 40:
+            label = "Moderate 🟡"
+        else:
+            label = "Spoiled 🔴"
 
         return {
-            "freshness_score": final_score,
+            "freshness_score": int(score), # Return as integer (e.g., 85)
             "freshness_label": label
         }

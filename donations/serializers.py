@@ -7,7 +7,7 @@ class DonationSerializer(serializers.ModelSerializer):
     lat = serializers.ReadOnlyField(source='donor.latitude')
     lng = serializers.ReadOnlyField(source='donor.longitude')
     
-    # 🚚 NGO Details (using 'recipient')
+    # NGO Details (using 'recipient')
     recipient_details = UserSerializer(source='recipient', read_only=True)
     
     class Meta:
@@ -15,11 +15,12 @@ class DonationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'donor_name', 'food_name', 'description', 'quantity_kg',
             'pickup_address', 'storage_time_hours', 'time_since_cooking_hours',
-            'storage_condition', 'food_type', 'freshness_score', 'freshness_label',
-            'status', 'created_at', 
+            'storage_condition', 'food_type',
+            'container_type', 'moisture_type', 'cooking_method', 'texture', 'smell',
+            'freshness_score', 'freshness_label', 'confidence',
+            'status', 'created_at', 'claimed_at',
             'lat', 'lng', 
             'recipient_details'
         ]
         
-        # 🔴 REMOVED 'status' FROM THIS LIST 👇
-        read_only_fields = ['id', 'donor', 'freshness_score', 'freshness_label', 'created_at', 'recipient']
+        read_only_fields = ['id', 'donor', 'freshness_score', 'freshness_label', 'confidence', 'created_at', 'claimed_at', 'recipient']

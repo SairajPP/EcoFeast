@@ -1,17 +1,28 @@
 from rest_framework import generics, permissions
 from .models import Donation
 from .serializers import DonationSerializer
-from ml_service.predictor import FreshnessPredictor
-from django.shortcuts import render
-from django.db.models import Q  # Needed for complex queries
+from django.shortcuts import render, redirect
+from django.db.models import Q
+from django.contrib.auth.decorators import login_required
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils import timezone
 
-# --- HTML VIEWS ---
+from .ml_service import FoodQualityPredictor 
+
+# Initialize AI once (Global Scope)
+predictor = FoodQualityPredictor()
+
+# --- HTML VIEWS (Protected) ---
+@login_required
 def donor_dashboard_view(request):
     return render(request, 'donor_dashboard.html')
 
+@login_required
 def ngo_dashboard_view(request):
     return render(request, 'ngo_dashboard.html')
 
+@login_required
 def map_dashboard_view(request):
     return render(request, 'map_dashboard.html')
 
@@ -25,39 +36,54 @@ class CreateDonationView(generics.CreateAPIView):
     def perform_create(self, serializer):
         data = self.request.data
         
-        # 1. Get the real-time temperature from the frontend
-        # Default to 25°C if something goes wrong
         real_temp = float(data.get('current_temperature', 25))
 
-        # 2. Prepare ML Input
         ml_input = {
             'storage_time': float(data.get('storage_time_hours', 0) or 0),
             'time_since_cooking': float(data.get('time_since_cooking_hours', 0) or 0),
             'storage_condition': data.get('storage_condition', 'outside'),
             'food_type': data.get('food_type', 'Vegetarian'), 
-            'temperature': real_temp,  
-            'container_type': 'plastic', 
-            'moisture_type': 'dry',
-            'cooking_method': 'fried',
-            'texture': 'soft',
-            'smell': 'neutral'
+            'temperature': real_temp,
+            'city': data.get('city', 'Mumbai'),
+            'container_type': data.get('container_type', 'closed'), 
+            'moisture_type': data.get('moisture_type', 'moist'),
+            'cooking_method': data.get('cooking_method', 'boiled'),
+            'texture': data.get('texture', 'firm'),
+            'smell': data.get('smell', 'neutral')
         }
 
-        # 3. Call AI Service
         try:
-            prediction = FreshnessPredictor.predict(ml_input)
+            prediction = predictor.predict(ml_input)
+            
             score = prediction['freshness_score']
             label = prediction['freshness_label']
+            confidence = prediction.get('confidence', None)
+
         except Exception as e:
-            print(f"ML Error: {e}")
+            print(f"⚠️ ML Error: {e}")
             score = 0
             label = "Unknown"
+            confidence = None
 
         serializer.save(
             donor=self.request.user,
             freshness_score=score,
-            freshness_label=label
+            freshness_label=label,
+            confidence=confidence,
+            container_type=data.get('container_type', 'closed'),
+            moisture_type=data.get('moisture_type', 'moist'),
+            cooking_method=data.get('cooking_method', 'boiled'),
+            texture=data.get('texture', 'firm'),
+            smell=data.get('smell', 'neutral'),
         )
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        if response.status_code == 201:
+            response.data['freshness_score'] = response.data.get('freshness_score')
+            response.data['freshness_label'] = response.data.get('freshness_label')
+            response.data['confidence'] = response.data.get('confidence')
+        return response
 
 
 class ListDonationsView(generics.ListAPIView):
@@ -67,32 +93,27 @@ class ListDonationsView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         
-        # 1. DONORS: See ALL their own history
         if user.role == 'donor':
             return Donation.objects.filter(donor=user).order_by('-created_at')
         
-        # 2. NGOs: See 'Pending' OR 'Claimed by ME' (Using 'recipient')
         elif user.role in ['ngo', 'shelter']:
             return Donation.objects.filter(
-                Q(status='pending') | Q(recipient=user)  # <--- FIXED: using recipient
+                Q(status='pending') | Q(recipient=user)
             ).order_by('-created_at')
             
         return Donation.objects.none()
 
 
 class DonationUpdateView(generics.UpdateAPIView):
-    """
-    Handles claiming donations.
-    """
+    """Handles claiming donations."""
     queryset = Donation.objects.all()
     serializer_class = DonationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_update(self, serializer):
-        # Save the update
         instance = serializer.save()
         
-        # If status is changing to 'claimed', verify WHO claimed it
         if self.request.data.get('status') == 'claimed':
-            instance.recipient = self.request.user  # <--- FIXED: using recipient
+            instance.recipient = self.request.user
+            instance.claimed_at = timezone.now()
             instance.save()
