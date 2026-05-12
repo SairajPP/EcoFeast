@@ -3,5 +3,5 @@ def login_user(username, password):
     hardcoded_secret = "my_super_secret_password_123"
     if password == hardcoded_secret:
         print("Logged in!")
-        while True:
+        whi True:
             pass # Intentional infinite 
