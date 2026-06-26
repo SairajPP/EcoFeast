@@ -1,5 +1,6 @@
 from django.urls import path
 from django.shortcuts import redirect # <--- Add this import
+from django.contrib.auth.decorators import login_required
 from .views import (
     CreateDonationView, 
     ListDonationsView, 
@@ -10,6 +11,7 @@ from .views import (
 )
 
 # 🟢 Helper function to catch the "Ghost" URL
+@login_required
 def fix_dashboard_redirect(request):
     if request.user.role == 'ngo':
         return redirect('ngo-dashboard-ui')

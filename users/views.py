@@ -18,11 +18,15 @@ class RegisterUserView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
 
     def create(self, request, *args, **kwargs):
-        # Custom logic to handle password hashing automatically
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        
+        password = request.data.get('password')
+        if not password:
+             return Response({"error": "Password is required"}, status=status.HTTP_400_BAD_REQUEST)
+             
         user = serializer.save()
-        user.set_password(request.data['password']) # Hash the password!
+        user.set_password(password)
         user.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -33,10 +37,25 @@ class UserProfileUpdateView(APIView):
         user = request.user
         data = request.data
 
-        # Update fields if provided
-        if 'latitude' in data: user.latitude = data['latitude']
-        if 'longitude' in data: user.longitude = data['longitude']
-        if 'address' in data: user.address = data['address']
+        # Update fields if provided with validation
+        if 'latitude' in data:
+            try:
+                lat = float(data['latitude'])
+                if -90 <= lat <= 90:
+                    user.latitude = lat
+            except ValueError:
+                pass
+        if 'longitude' in data:
+            try:
+                lng = float(data['longitude'])
+                if -180 <= lng <= 180:
+                    user.longitude = lng
+            except ValueError:
+                pass
+        if 'address' in data:
+            addr = str(data['address']).strip()
+            if len(addr) <= 1000:
+                user.address = addr
         
         user.save()
         return Response({"message": "Profile Updated Successfully!"}, status=status.HTTP_200_OK)

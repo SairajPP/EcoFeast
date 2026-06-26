@@ -1,66 +1,160 @@
-import pandas as pd
-import xgboost as xgb
-import joblib
+"""
+XGBoost trainer for food freshness prediction.
+Uses shared FeatureBuilder to eliminate train/serve skew.
+"""
+
 import os
+import json
+import logging
+import pandas as pd
+import numpy as np
+import joblib
+import xgboost as xgb
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-from django.conf import settings
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
+from .feature_builder import FeatureBuilder, CONFIG
 
-# Paths
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, 'data', 'food_data.csv')
-MODEL_PATH = os.path.join(BASE_DIR, 'models', 'freshness_xgb.json')
-ENCODER_PATH = os.path.join(BASE_DIR, 'models', 'encoders.pkl')
+DATA_PATH = os.path.join(BASE_DIR, '..', 'donations', 'food_data.csv')
+MODEL_DIR = os.path.join(BASE_DIR, 'models')
+MODEL_PATH = os.path.join(MODEL_DIR, 'freshness_xgb_v1.json')
+ENCODER_PATH = os.path.join(MODEL_DIR, 'feature_builder_v1.pkl')
+METRICS_PATH = os.path.join(MODEL_DIR, 'metrics_v1.json')
 
-def train_model():
-    print(f"Loading data from {DATA_PATH}...")
+
+def load_data() -> pd.DataFrame:
+    """Load and validate training data."""
     if not os.path.exists(DATA_PATH):
-        print("❌ Error: food_data.csv not found in ml_service/data/")
-        return
+        raise FileNotFoundError(f"Training data not found at {DATA_PATH}")
 
     df = pd.read_csv(DATA_PATH)
+    logger.info(f"Loaded {len(df)} samples from {DATA_PATH}")
 
-    # 1. Define Features
-    # Based on your CSV columns: storage_time, time_since_cooking, storage_condition, etc.
-    categorical_cols = ['storage_condition', 'container_type', 'food_type', 'moisture_type', 'cooking_method', 'texture', 'smell']
-    numerical_cols = ['storage_time', 'time_since_cooking']
-    target_col = 'freshness_level'
+    # Validate required columns
+    required = CONFIG.NUMERICAL_FEATURES + CONFIG.CATEGORICAL_FEATURES + [CONFIG.TARGET_COL]
+    missing = set(required) - set(df.columns)
+    if missing:
+        raise ValueError(f"CSV missing columns: {missing}")
 
-    # 2. Preprocessing (Label Encoding)
-    encoders = {}
-    for col in categorical_cols:
-        le = LabelEncoder()
-        df[col] = le.fit_transform(df[col].astype(str))
-        encoders[col] = le
-    
-    # Encode Target (Fresh/Spoiled -> 0, 1, 2)
-    target_le = LabelEncoder()
-    df[target_col] = target_le.fit_transform(df[target_col])
-    encoders['target'] = target_le
+    # Drop rows with missing values
+    initial = len(df)
+    df = df.dropna(subset=required)
+    if len(df) < initial:
+        logger.info(f"Dropped {initial - len(df)} rows with missing values")
 
-    # 3. Train XGBoost
-    X = df[categorical_cols + numerical_cols]
-    y = df[target_col]
+    return df
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    print("Training XGBoost Model...")
-    model = xgb.XGBClassifier(
-        n_estimators=100, 
-        learning_rate=0.1, 
-        max_depth=5, 
-        objective='multi:softprob',  # For multi-class classification
-        num_class=len(target_le.classes_)
+def train_model(test_size: float = 0.2, random_state: int = 42) -> dict:
+    """
+    Train XGBoost model with FeatureBuilder.
+    Returns training metrics.
+    """
+    os.makedirs(MODEL_DIR, exist_ok=True)
+
+    # Load data
+    df = load_data()
+    logger.info(f"Training on {len(df)} samples")
+
+    # Feature engineering
+    builder = FeatureBuilder()
+    X = builder.fit_transform(df)
+    y = builder.encode_target(df[CONFIG.TARGET_COL])
+
+    logger.info(f"Features: {list(X.columns)}")
+    logger.info(f"Target classes: {builder.classes}")
+
+    # Train/test split
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=random_state, stratify=y
     )
-    model.fit(X_train, y_train)
 
-    # 4. Save Artifacts
-    os.makedirs(os.path.join(BASE_DIR, 'models'), exist_ok=True)
-    model.save_model(MODEL_PATH) # XGBoost saves as JSON efficiently
-    joblib.dump(encoders, ENCODER_PATH)
-    
-    print(f"✅ Model saved to {MODEL_PATH}")
-    print(f"✅ Encoders saved to {ENCODER_PATH}")
+    # Train XGBoost
+    n_classes = len(builder.classes)
+    model = xgb.XGBClassifier(
+        n_estimators=200,
+        learning_rate=0.1,
+        max_depth=6,
+        min_child_weight=3,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        objective='multi:softprob',
+        num_class=n_classes,
+        eval_metric='mlogloss',
+        use_label_encoder=False,
+        random_state=random_state,
+        n_jobs=-1,
+    )
 
-if __name__ == "__main__":
-    train_model()
+    logger.info("Training XGBoost model...")
+    model.fit(
+        X_train, y_train,
+        eval_set=[(X_test, y_test)],
+        verbose=False,
+    )
+
+    # Evaluate
+    y_pred = model.predict(X_test)
+    y_proba = model.predict_proba(X_test)
+
+    report = classification_report(
+        y_test, y_pred,
+        target_names=builder.classes,
+        output_dict=True,
+    )
+    cm = confusion_matrix(y_test, y_pred)
+
+    # ROC-AUC (one-vs-rest)
+    try:
+        auc = roc_auc_score(y_test, y_proba, multi_class='ovr', average='weighted')
+    except Exception:
+        auc = 0.0
+
+    metrics = {
+        'accuracy': report['accuracy'],
+        'roc_auc_weighted': auc,
+        'per_class': {
+            cls: {
+                'precision': report[cls]['precision'],
+                'recall': report[cls]['recall'],
+                'f1-score': report[cls]['f1-score'],
+                'support': int(report[cls]['support']),
+            }
+            for cls in builder.classes
+        },
+        'confusion_matrix': cm.tolist(),
+        'train_samples': len(X_train),
+        'test_samples': len(X_test),
+        'features': list(X.columns),
+    }
+
+    # Save model
+    model.save_model(MODEL_PATH)
+    logger.info(f"Model saved to {MODEL_PATH}")
+
+    # Save FeatureBuilder
+    joblib.dump(builder, ENCODER_PATH)
+    logger.info(f"FeatureBuilder saved to {ENCODER_PATH}")
+
+    # Save metrics
+    with open(METRICS_PATH, 'w') as f:
+        json.dump(metrics, f, indent=2)
+    logger.info(f"Metrics saved to {METRICS_PATH}")
+
+    # Print summary
+    logger.info(f"\n{'='*50}")
+    logger.info(f"Accuracy: {metrics['accuracy']:.4f}")
+    logger.info(f"ROC-AUC (weighted): {metrics['roc_auc_weighted']:.4f}")
+    logger.info(f"\nClassification Report:")
+    logger.info(classification_report(y_test, y_pred, target_names=builder.classes))
+
+    return metrics
+
+
+if __name__ == '__main__':
+    metrics = train_model()
+    print(f"\nFinal Accuracy: {metrics['accuracy']:.2%}")
+    print(f"Final ROC-AUC: {metrics['roc_auc_weighted']:.4f}")
