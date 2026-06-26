@@ -51,3 +51,43 @@ class Donation(models.Model):
 
     def __str__(self):
         return f"{self.food_name} - {self.freshness_label} ({self.freshness_score}%)"
+
+
+class AgentRun(models.Model):
+    """
+    Persists the full agent decision trail for auditability.
+    One donation can have multiple agent runs (escalations).
+    """
+    donation = models.ForeignKey(Donation, on_delete=models.CASCADE, related_name="agent_runs", null=True, blank=True)
+
+    # Pipeline results
+    status = models.CharField(max_length=20, help_text="intake, verify, match, logistics, complete, failed")
+    final_ngo_id = models.IntegerField(null=True, blank=True)
+    final_ngo_name = models.CharField(max_length=255, blank=True, default="")
+
+    # Decision trail (JSON array of agent actions)
+    decision_trail = models.JSONField(default=list, blank=True)
+
+    # Performance metrics
+    ml_freshness_score = models.FloatField(null=True, blank=True)
+    ml_confidence = models.FloatField(null=True, blank=True)
+    anomalies_found = models.IntegerField(default=0)
+    escalations = models.IntegerField(default=0)
+    matched_ngos_count = models.IntegerField(default=0)
+
+    # Timestamps
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.FloatField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['donation']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"Run for {self.donation.food_name} — {self.status}"

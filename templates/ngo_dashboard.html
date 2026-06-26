@@ -246,6 +246,10 @@
                                 <div class="freshness-bar flex-grow"><div class="freshness-bar-fill ${barColor}" style="width: ${score}%"></div></div>
                                 <span class="text-xs font-bold text-gray-500">${score}%</span>
                             </div>
+                            <p id="explain-${d.id}" class="text-xs text-gray-400 italic mb-3" onclick="loadExplanation(${d.id}, ${JSON.stringify(d).replace(/"/g, '&quot;')})" style="cursor:pointer">
+                                <i class="fas fa-lightbulb text-amber-400"></i> Click for AI analysis
+                            </p>
+                            </div>
                             <div class="flex flex-wrap gap-2 mb-3 text-sm text-gray-600">
                                 <span>📦 ${d.quantity_kg} kg</span>
                                 <span>📍 ${(d.pickup_address || '').substring(0, 40)}...</span>
@@ -374,6 +378,48 @@
         await fetch('/api/users/profile/update/', {method:'PATCH', headers:{'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')}, body:JSON.stringify(data)});
         showToast("Location saved successfully!", "success");
     });
+
+    // --- SHAP-TO-LANGUAGE EXPLANATION ---
+    async function loadExplanation(donationId, donationData) {
+        const el = document.getElementById(`explain-${donationId}`);
+        if (!el) return;
+        el.innerHTML = '<i class="fas fa-spinner fa-spin text-blue-500"></i> <span class="text-blue-600">Loading AI analysis...</span>';
+
+        try {
+            const response = await fetch('/api/genai/explain/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({
+                    freshness_label: donationData.freshness_label,
+                    freshness_score: donationData.freshness_score,
+                    confidence: donationData.confidence,
+                    storage_time: donationData.storage_time_hours || 5,
+                    time_since_cooking: donationData.time_since_cooking_hours || 3,
+                    storage_condition: donationData.storage_condition || 'room_temperature',
+                    container_type: donationData.container_type || 'closed',
+                    food_type: donationData.food_type || 'Vegetarian',
+                    moisture_type: donationData.moisture_type || 'dry',
+                    cooking_method: donationData.cooking_method || 'boiled',
+                    texture: donationData.texture || 'firm',
+                    smell: donationData.smell || 'neutral',
+                }),
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                el.innerHTML = `<i class="fas fa-robot text-green-500"></i> <span class="text-gray-600">${result.explanation}</span>`;
+                el.classList.remove('italic', 'text-gray-400');
+                el.classList.add('text-gray-600');
+            } else {
+                el.innerHTML = '<i class="fas fa-exclamation-triangle text-amber-500"></i> <span class="text-gray-500">Analysis unavailable</span>';
+            }
+        } catch (e) {
+            el.innerHTML = '<i class="fas fa-exclamation-triangle text-amber-500"></i> <span class="text-gray-500">Could not load analysis</span>';
+        }
+    }
 
     // Initial Load
     loadData();

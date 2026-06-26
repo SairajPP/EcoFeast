@@ -1,71 +1,154 @@
-import pandas as pd
+"""
+XGBoost predictor for food freshness.
+Loads the trained model and FeatureBuilder for inference.
+"""
+
+import os
+import logging
 import numpy as np
+import pandas as pd
+import joblib
+import xgboost as xgb
+from typing import Dict, Optional, List
+from dataclasses import dataclass, asdict
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_DIR = os.path.join(BASE_DIR, 'models')
+MODEL_PATH = os.path.join(MODEL_DIR, 'freshness_xgb_v1.json')
+ENCODER_PATH = os.path.join(MODEL_DIR, 'feature_builder_v1.pkl')
+# Fallback paths (old model)
+FALLBACK_MODEL_PATH = os.path.join(MODEL_DIR, 'freshness_xgb.json')
+FALLBACK_ENCODER_PATH = os.path.join(MODEL_DIR, 'encoders.pkl')
+
+
+@dataclass
+class PredictionResult:
+    """Structured prediction output."""
+    freshness_label: str
+    freshness_score: int
+    confidence: float
+    probabilities: Dict[str, float]
+    shap_top_features: Optional[List[Dict]] = None
+
+    def __getitem__(self, key):
+        return getattr(self, key)
+
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+
+    def to_dict(self):
+        return asdict(self)
+
 
 class FreshnessPredictor:
-    @staticmethod
-    def predict(data):
+    """
+    Production predictor using XGBoost + FeatureBuilder.
+    Loads model once, predicts many times.
+    """
+
+    SCORE_MAP = {'Fresh': 100, 'Medium': 50, 'Spoiled': 0}
+
+    def __init__(self):
+        self.model: Optional[xgb.XGBClassifier] = None
+        self.feature_builder = None
+        self._loaded = False
+        self._load_model()
+
+    def _load_model(self):
+        """Load model and FeatureBuilder from disk."""
+        model_path = MODEL_PATH if os.path.exists(MODEL_PATH) else FALLBACK_MODEL_PATH
+        encoder_path = ENCODER_PATH if os.path.exists(ENCODER_PATH) else FALLBACK_ENCODER_PATH
+
+        if not os.path.exists(model_path):
+            logger.warning(f"No model found at {model_path}. Call train_model() first.")
+            return
+
+        try:
+            self.model = xgb.XGBClassifier()
+            self.model.load_model(model_path)
+            logger.info(f"Model loaded from {model_path}")
+
+            if os.path.exists(encoder_path):
+                self.feature_builder = joblib.load(encoder_path)
+                logger.info(f"FeatureBuilder loaded from {encoder_path}")
+            else:
+                logger.warning("FeatureBuilder not found — predictions may fail.")
+
+            self._loaded = True
+
+        except Exception as e:
+            logger.error(f"Failed to load model: {e}")
+
+    def predict(self, input_data: Dict) -> PredictionResult:
         """
-        Calculates Freshness Score based on Time, Temp, and Storage.
-        No .json or .pkl files required! Works instantly.
+        Predict food freshness from input data.
+
+        Args:
+            input_data: Dictionary with feature values:
+                - storage_time (float)
+                - time_since_cooking (float)
+                - storage_condition (str)
+                - container_type (str)
+                - food_type (str)
+                - moisture_type (str)
+                - cooking_method (str)
+                - texture (str)
+                - smell (str)
+
+        Returns:
+            PredictionResult with label, score, confidence, probabilities
         """
-        # 1. Start with a perfect score
-        score = 100.0
-        
-        # --- INPUTS ---
-        # Get values safely, defaulting to 0 if missing
-        hours_cooked = float(data.get('time_since_cooking_hours', 0) or 0)
-        hours_stored = float(data.get('storage_time_hours', 0) or 0)
-        temp = float(data.get('temperature', 25)) # Default 25°C
-        condition = data.get('storage_condition', 'room_temperature')
-        food_type = data.get('food_type', 'Vegetarian')
+        if not self._loaded:
+            raise RuntimeError("Model not loaded. Train or load a model first.")
 
-        # --- SMART LOGIC RULES ---
+        # Transform input
+        X = self.feature_builder.transform_single(input_data)
 
-        # Rule 1: Time Decay (Food spoils over time)
-        # Lose 5 points for every hour it sits out
-        total_hours = hours_cooked + hours_stored
-        score -= (total_hours * 5)
+        # Predict
+        probabilities = self.model.predict_proba(X)[0]
+        classes = self.feature_builder.classes
 
-        # Rule 2: Temperature Penalty (Heat kills food) 🌡️
-        if temp > 35:
-            score -= 25  # Extreme heat penalty
-        elif temp > 30:
-            score -= 15  # Hot day penalty
-        elif temp < 10:
-            score += 5   # Bonus for cold weather (natural fridge)
+        # Get prediction
+        pred_idx = np.argmax(probabilities)
+        predicted_label = classes[pred_idx]
+        confidence = float(probabilities[pred_idx]) * 100
 
-        # Rule 3: Storage Condition
-        if condition == 'outside' or condition == 'room_temperature':
-            # Room temp degrades faster
-            score -= 10 
-        elif condition == 'refrigerated':
-            # Fridge preserves freshness (Bonus!)
-            score += 15 
-        elif condition == 'heated':
-            # Keeping it hot is good for short term, bad for long term
-            if total_hours > 4:
-                score -= 20
+        # Calculate freshness score (weighted sum)
+        score = sum(
+            self.SCORE_MAP.get(cls, 0) * prob
+            for cls, prob in zip(classes, probabilities)
+        )
+        freshness_score = int(round(score))
 
-        # Rule 4: Food Type Sensitivity
-        if food_type == 'Non-Veg':
-            score -= 15 # Meat spoils faster than veg
-        elif food_type == 'Vegan':
-            score += 5  # Veggies last longer
+        # Build probability dict
+        prob_dict = {cls: float(prob) for cls, prob in zip(classes, probabilities)}
 
-        # --- FINAL CALCULATIONS ---
-        
-        # Ensure score stays between 0 and 100
-        score = max(0, min(100, score))
-        
-        # Determine Label
-        if score >= 75:
-            label = "Fresh 🟢"
-        elif score >= 40:
-            label = "Moderate 🟡"
-        else:
-            label = "Spoiled 🔴"
+        return PredictionResult(
+            freshness_label=predicted_label,
+            freshness_score=freshness_score,
+            confidence=round(confidence, 1),
+            probabilities=prob_dict,
+        )
 
-        return {
-            "freshness_score": int(score), # Return as integer (e.g., 85)
-            "freshness_label": label
-        }
+    def predict_batch(self, input_list: List[Dict]) -> List[PredictionResult]:
+        """Predict on multiple samples."""
+        return [self.predict(data) for data in input_list]
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._loaded
+
+
+# Singleton for Django views
+_predictor_instance: Optional[FreshnessPredictor] = None
+
+
+def get_predictor() -> FreshnessPredictor:
+    """Get or create singleton predictor instance."""
+    global _predictor_instance
+    if _predictor_instance is None or not _predictor_instance.is_loaded:
+        _predictor_instance = FreshnessPredictor()
+    return _predictor_instance

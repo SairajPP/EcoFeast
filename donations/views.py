@@ -8,10 +8,12 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
 
-from .ml_service import FoodQualityPredictor 
+from ml_service.predictor import get_predictor
+from ml_service.explainer import get_explainer
 
-# Initialize AI once (Global Scope)
-predictor = FoodQualityPredictor()
+# Initialize ML components once (Global Scope)
+predictor = get_predictor()
+explainer = get_explainer()
 
 # --- HTML VIEWS (Protected) ---
 @login_required
@@ -35,35 +37,37 @@ class CreateDonationView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         data = self.request.data
-        
-        real_temp = float(data.get('current_temperature', 25))
 
+        # Build ML input from form data
         ml_input = {
             'storage_time': float(data.get('storage_time_hours', 0) or 0),
             'time_since_cooking': float(data.get('time_since_cooking_hours', 0) or 0),
-            'storage_condition': data.get('storage_condition', 'outside'),
-            'food_type': data.get('food_type', 'Vegetarian'), 
-            'temperature': real_temp,
-            'city': data.get('city', 'Mumbai'),
-            'container_type': data.get('container_type', 'closed'), 
-            'moisture_type': data.get('moisture_type', 'moist'),
+            'storage_condition': data.get('storage_condition', 'room_temperature'),
+            'food_type': data.get('food_type', 'Vegetarian'),
+            'container_type': data.get('container_type', 'closed'),
+            'moisture_type': data.get('moisture_type', 'dry'),
             'cooking_method': data.get('cooking_method', 'boiled'),
             'texture': data.get('texture', 'firm'),
-            'smell': data.get('smell', 'neutral')
+            'smell': data.get('smell', 'neutral'),
         }
 
         try:
             prediction = predictor.predict(ml_input)
-            
-            score = prediction['freshness_score']
-            label = prediction['freshness_label']
-            confidence = prediction.get('confidence', None)
+            score = prediction.freshness_score
+            label = prediction.freshness_label
+            confidence = prediction.confidence
+
+            # Get SHAP explanation
+            shap_features = explainer.explain(ml_input, top_n=3)
+            explanation_text = explainer.explain_to_text(ml_input)
 
         except Exception as e:
-            print(f"⚠️ ML Error: {e}")
+            print(f"ML Error: {e}")
             score = 0
             label = "Unknown"
             confidence = None
+            shap_features = []
+            explanation_text = ""
 
         serializer.save(
             donor=self.request.user,
@@ -71,7 +75,7 @@ class CreateDonationView(generics.CreateAPIView):
             freshness_label=label,
             confidence=confidence,
             container_type=data.get('container_type', 'closed'),
-            moisture_type=data.get('moisture_type', 'moist'),
+            moisture_type=data.get('moisture_type', 'dry'),
             cooking_method=data.get('cooking_method', 'boiled'),
             texture=data.get('texture', 'firm'),
             smell=data.get('smell', 'neutral'),
@@ -92,15 +96,15 @@ class ListDonationsView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        
+
         if user.role == 'donor':
             return Donation.objects.filter(donor=user).order_by('-created_at')
-        
+
         elif user.role in ['ngo', 'shelter']:
             return Donation.objects.filter(
                 Q(status='pending') | Q(recipient=user)
             ).order_by('-created_at')
-            
+
         return Donation.objects.none()
 
 
@@ -112,7 +116,7 @@ class DonationUpdateView(generics.UpdateAPIView):
 
     def perform_update(self, serializer):
         instance = serializer.save()
-        
+
         if self.request.data.get('status') == 'claimed':
             instance.recipient = self.request.user
             instance.claimed_at = timezone.now()

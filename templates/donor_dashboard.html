@@ -71,6 +71,71 @@
             <span class="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center text-lg">🍲</span>
             Donate Food (AI Powered)
         </h2>
+
+        <!-- GenAI Intake Mode Selector -->
+        <div class="flex justify-center mb-6 bg-gray-50 rounded-xl p-1 w-fit mx-auto border border-gray-200">
+            <button type="button" onclick="switchIntakeMode('photo')" id="mode-photo" class="px-5 py-2 rounded-lg text-sm font-bold bg-green-600 text-white shadow transition">
+                📸 Photo Scan
+            </button>
+            <button type="button" onclick="switchIntakeMode('chat')" id="mode-chat" class="px-5 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100 transition">
+                💬 Chat
+            </button>
+            <button type="button" onclick="switchIntakeMode('manual')" id="mode-manual" class="px-5 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100 transition">
+                ✏️ Manual
+            </button>
+        </div>
+
+        <!-- PHOTO INTAKE MODE -->
+        <div id="intake-photo" class="mb-6">
+            <div class="border-2 border-dashed border-green-300 rounded-2xl p-8 text-center bg-green-50/50 hover:bg-green-50 transition cursor-pointer" onclick="document.getElementById('food-photo').click()">
+                <input type="file" id="food-photo" accept="image/*" class="hidden" onchange="handlePhotoUpload(this)">
+                <div id="photo-placeholder">
+                    <div class="text-4xl mb-3">📷</div>
+                    <p class="font-bold text-gray-700 mb-1">Upload a food photo</p>
+                    <p class="text-sm text-gray-500">AI will extract food details automatically</p>
+                    <p class="text-xs text-gray-400 mt-2">JPG, PNG, WebP — max 10MB</p>
+                </div>
+                <div id="photo-preview" class="hidden">
+                    <img id="photo-img" class="max-h-48 mx-auto rounded-xl shadow mb-3" alt="Food photo">
+                    <p class="text-sm text-green-600 font-bold"><i class="fas fa-check-circle"></i> Photo loaded — click to change</p>
+                </div>
+            </div>
+            <div id="photo-status" class="mt-3 text-center text-sm hidden">
+                <span class="text-green-600 font-bold"><i class="fas fa-spinner fa-spin"></i> AI is analyzing your photo...</span>
+            </div>
+            <div id="photo-result" class="mt-4 hidden">
+                <div class="bg-green-50 border border-green-200 rounded-xl p-4">
+                    <p class="text-sm font-bold text-green-800 mb-2"><i class="fas fa-robot"></i> AI Extracted (review & edit below):</p>
+                    <p id="photo-extracted-text" class="text-sm text-gray-600"></p>
+                    <button type="button" onclick="applyPhotoResult()" class="mt-3 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg text-sm transition">
+                        <i class="fas fa-check"></i> Use These Details
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHAT INTAKE MODE -->
+        <div id="intake-chat" class="hidden mb-6">
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-5">
+                <p class="text-sm font-bold text-blue-800 mb-3"><i class="fas fa-comments"></i> Describe your food donation:</p>
+                <textarea id="chat-input" class="w-full p-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition bg-white" rows="3" placeholder='e.g. "Leftover biryani from a wedding, cooked 4 hrs ago, steel containers, ~15kg"'></textarea>
+                <button type="button" onclick="handleChatSubmit()" id="chat-btn" class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm transition">
+                    <i class="fas fa-wand-magic-sparkles"></i> Extract Details with AI
+                </button>
+                <div id="chat-status" class="mt-3 text-center text-sm hidden">
+                    <span class="text-blue-600 font-bold"><i class="fas fa-spinner fa-spin"></i> AI is reading your description...</span>
+                </div>
+                <div id="chat-result" class="mt-4 hidden">
+                    <div class="bg-white border border-blue-200 rounded-xl p-4">
+                        <p class="text-sm font-bold text-blue-800 mb-2"><i class="fas fa-robot"></i> AI Extracted:</p>
+                        <p id="chat-extracted-text" class="text-sm text-gray-600"></p>
+                        <button type="button" onclick="applyChatResult()" class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-sm transition">
+                            <i class="fas fa-check"></i> Use These Details
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
         
         <form id="donationForm" class="space-y-5">
             <input type="hidden" name="current_temperature" id="hidden-temp" value="25">
@@ -330,6 +395,171 @@
         
         if(name === 'pickups') loadPickups();
         if(name === 'history') loadHistory();
+    }
+
+    // --- GENAI INTAKE MODE SWITCHING ---
+    let currentIntakeMode = 'photo';
+    let photoResultData = null;
+    let chatResultData = null;
+
+    function switchIntakeMode(mode) {
+        currentIntakeMode = mode;
+        ['photo', 'chat', 'manual'].forEach(m => {
+            const btn = document.getElementById(`mode-${m}`);
+            const panel = document.getElementById(`intake-${m}`);
+            if (m === mode) {
+                btn.className = "px-5 py-2 rounded-lg text-sm font-bold bg-green-600 text-white shadow transition";
+                if (panel) panel.classList.remove('hidden');
+            } else {
+                btn.className = "px-5 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100 transition";
+                if (panel) panel.classList.add('hidden');
+            }
+        });
+    }
+
+    // --- PHOTO UPLOAD ---
+    async function handlePhotoUpload(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        // Show preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('photo-img').src = e.target.result;
+            document.getElementById('photo-placeholder').classList.add('hidden');
+            document.getElementById('photo-preview').classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+
+        // Show status
+        document.getElementById('photo-status').classList.remove('hidden');
+        document.getElementById('photo-result').classList.add('hidden');
+
+        // Upload to GenAI
+        const formData = new FormData();
+        formData.append('image', file);
+
+        try {
+            const response = await fetch('/api/genai/vision/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                body: formData,
+            });
+
+            const result = await response.json();
+            document.getElementById('photo-status').classList.add('hidden');
+
+            if (result.success) {
+                photoResultData = result;
+                const conf = Math.round((result.confidence || 0) * 100);
+                document.getElementById('photo-extracted-text').innerHTML = `
+                    <b>${result.food_name || 'Unknown'}</b> — ${result.food_type || 'Vegetarian'}<br>
+                    📦 ~${result.estimated_quantity_kg || 1} kg | ${result.container_type || 'closed'} container<br>
+                    🍳 ${result.cooking_method || 'boiled'} | 💧 ${result.moisture_type || 'dry'} | ${result.texture || 'firm'}<br>
+                    🤖 Confidence: ${conf}%
+                `;
+                document.getElementById('photo-result').classList.remove('hidden');
+                showToast("Photo analyzed! Review the extracted details.", "success");
+            } else {
+                showToast("Could not analyze photo: " + (result.error || "Unknown error"), "error");
+            }
+        } catch (e) {
+            document.getElementById('photo-status').classList.add('hidden');
+            showToast("Network error: " + e.message, "error");
+        }
+    }
+
+    function applyPhotoResult() {
+        if (!photoResultData) return;
+        const d = photoResultData;
+
+        // Fill form fields
+        setFormValue('food_name', d.food_name || '');
+        setFormValue('description', `AI-detected: ${d.food_type} food, ${d.cooking_method} method`);
+        setFormValue('quantity_kg', d.estimated_quantity_kg || '');
+        setFormValue('food_type', d.food_type || 'Vegetarian');
+        setFormValue('container_type', d.container_type || 'closed');
+        setFormValue('moisture_type', d.moisture_type || 'dry');
+        setFormValue('cooking_method', d.cooking_method || 'boiled');
+        setFormValue('texture', d.texture || 'firm');
+
+        // Switch to manual mode so user can review/edit
+        switchIntakeMode('manual');
+        showToast("Fields populated! Review and submit.", "success");
+    }
+
+    // --- CHAT INTAKE ---
+    async function handleChatSubmit() {
+        const text = document.getElementById('chat-input').value.trim();
+        if (!text) {
+            showToast("Please describe your food donation.", "warning");
+            return;
+        }
+
+        document.getElementById('chat-status').classList.remove('hidden');
+        document.getElementById('chat-result').classList.add('hidden');
+        document.getElementById('chat-btn').disabled = true;
+
+        try {
+            const response = await fetch('/api/genai/chat/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({ text }),
+            });
+
+            const result = await response.json();
+            document.getElementById('chat-status').classList.add('hidden');
+            document.getElementById('chat-btn').disabled = false;
+
+            if (result.success) {
+                chatResultData = result;
+                const conf = Math.round((result.confidence || 0) * 100);
+                document.getElementById('chat-extracted-text').innerHTML = `
+                    <b>${result.food_name || 'Unknown'}</b> — ${result.food_type || 'Vegetarian'}<br>
+                    📦 ~${result.quantity_kg || 1} kg | ${result.container_type || 'closed'}<br>
+                    ❄️ ${result.storage_condition || 'room_temp'} | ⏱️ Cooked ${result.time_since_cooking_hours || 0}h ago<br>
+                    🤖 Confidence: ${conf}%
+                `;
+                document.getElementById('chat-result').classList.remove('hidden');
+                showToast("Description analyzed!", "success");
+            } else {
+                showToast("Could not analyze: " + (result.error || "Unknown error"), "error");
+            }
+        } catch (e) {
+            document.getElementById('chat-status').classList.add('hidden');
+            document.getElementById('chat-btn').disabled = false;
+            showToast("Network error: " + e.message, "error");
+        }
+    }
+
+    function applyChatResult() {
+        if (!chatResultData) return;
+        const d = chatResultData;
+
+        setFormValue('food_name', d.food_name || '');
+        setFormValue('description', d.description || '');
+        setFormValue('quantity_kg', d.quantity_kg || '');
+        setFormValue('food_type', d.food_type || 'Vegetarian');
+        setFormValue('container_type', d.container_type || 'closed');
+        setFormValue('storage_condition', d.storage_condition || 'room_temperature');
+        setFormValue('time_since_cooking_hours', d.time_since_cooking_hours || '');
+        setFormValue('storage_time_hours', d.storage_time_hours || '');
+        setFormValue('moisture_type', d.moisture_type || 'dry');
+        setFormValue('cooking_method', d.cooking_method || 'boiled');
+        setFormValue('texture', d.texture || 'firm');
+        setFormValue('smell', d.smell || 'neutral');
+
+        switchIntakeMode('manual');
+        showToast("Fields populated! Review and submit.", "success");
+    }
+
+    // Helper to set form values
+    function setFormValue(name, value) {
+        const el = document.querySelector(`#donationForm [name="${name}"]`);
+        if (el && value) el.value = value;
     }
 
     // --- DONATION SUBMISSION ---

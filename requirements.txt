@@ -1,0 +1,30 @@
+django
+djangorestframework
+django-cors-headers
+psycopg2-binary
+dj-database-url
+python-dotenv
+
+# ML
+scikit-learn
+xgboost
+shap
+pandas
+numpy
+joblib
+requests
+
+# GenAI
+groq
+
+# RAG
+sentence-transformers
+qdrant-client
+
+# Agentic
+langgraph
+langchain-core
+
+# DevOps
+pytest
+pytest-django
