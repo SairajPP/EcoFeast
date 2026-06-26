@@ -27,7 +27,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project
 COPY . .
 
-# Collect static files
+# Collect static files (needs a dummy key)
+ARG SECRET_KEY=build-only-dummy-key
+ENV SECRET_KEY=$SECRET_KEY
 RUN python manage.py collectstatic --noinput --clear
 
 # Change ownership to appuser

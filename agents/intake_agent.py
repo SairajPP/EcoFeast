@@ -4,7 +4,7 @@ First step in the pipeline.
 """
 
 import logging
-from datetime import datetime
+from django.utils import timezone
 from typing import Dict
 from .state import DonationState
 
@@ -24,7 +24,7 @@ def intake_agent(state: DonationState) -> DonationState:
     trail_entry = {
         "agent": "intake",
         "action": "processed_input",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": timezone.now().isoformat(),
         "input_food": state.get("food_name", ""),
         "input_quantity": state.get("quantity_kg", 0),
     }

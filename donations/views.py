@@ -11,9 +11,7 @@ from django.utils import timezone
 from ml_service.predictor import get_predictor
 from ml_service.explainer import get_explainer
 
-# Initialize ML components once (Global Scope)
-predictor = get_predictor()
-explainer = get_explainer()
+# ML components will be loaded lazily to avoid import-time crashes
 
 # --- HTML VIEWS (Protected) ---
 @login_required
@@ -52,6 +50,9 @@ class CreateDonationView(generics.CreateAPIView):
         }
 
         try:
+            predictor = get_predictor()
+            explainer = get_explainer()
+            
             prediction = predictor.predict(ml_input)
             score = prediction.freshness_score
             label = prediction.freshness_label
@@ -110,11 +111,16 @@ class ListDonationsView(generics.ListAPIView):
 
 class DonationUpdateView(generics.UpdateAPIView):
     """Handles claiming donations."""
-    queryset = Donation.objects.all()
     serializer_class = DonationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        return Donation.objects.filter(status='pending')
+
     def perform_update(self, serializer):
+        if self.request.user.role not in ['ngo', 'shelter']:
+            raise permissions.PermissionDenied("Only NGOs and Shelters can claim donations.")
+            
         instance = serializer.save()
 
         if self.request.data.get('status') == 'claimed':

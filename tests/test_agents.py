@@ -23,8 +23,8 @@ class TestIntakeAgent:
         from agents.intake_agent import intake_agent
         assert intake_agent is not None
 
-    @patch('agents.intake_agent.get_predictor')
-    @patch('agents.intake_agent.get_explainer')
+    @patch('ml_service.predictor.get_predictor')
+    @patch('ml_service.explainer.get_explainer')
     def test_intake_agent_success(self, mock_get_explainer, mock_get_predictor):
         from agents.intake_agent import intake_agent
 
@@ -33,7 +33,7 @@ class TestIntakeAgent:
         mock_pred.freshness_label = 'Fresh'
         mock_pred.confidence = 92.0
         mock_get_predictor.return_value.predict.return_value = mock_pred
-        mock_get_explainer.return_value.explain.return_value = [{'feature': 'storage_condition_refrigerated', 'value': 0.5}]
+        mock_get_explainer.return_value.explain.return_value = [{'feature': 'storage_condition_refrigerated', 'impact': 0.5, 'direction': 'positive'}]
 
         state = {
             'donation_id': None, 'donor_id': None, 'donor_username': 'test',
@@ -64,8 +64,8 @@ class TestIntakeAgent:
         assert len(result['decision_trail']) == 1
         assert result['decision_trail'][0]['agent'] == 'intake'
 
-    @patch('agents.intake_agent.get_predictor')
-    @patch('agents.intake_agent.get_explainer')
+    @patch('ml_service.predictor.get_predictor')
+    @patch('ml_service.explainer.get_explainer')
     def test_intake_agent_error(self, mock_get_explainer, mock_get_predictor):
         from agents.intake_agent import intake_agent
 
@@ -206,7 +206,7 @@ class TestMatchingAgent:
         from agents.matching_agent import matching_agent
         assert matching_agent is not None
 
-    @patch('agents.matching_agent.match_donation_to_ngos')
+    @patch('rag_service.matcher.match_donation_to_ngos')
     def test_matching_finds_ngos(self, mock_match):
         from agents.matching_agent import matching_agent
 
@@ -228,7 +228,7 @@ class TestMatchingAgent:
         assert result['assigned_ngo_name'] == 'NGO One'
         assert result['current_ngo_index'] == 0
 
-    @patch('agents.matching_agent.match_donation_to_ngos')
+    @patch('rag_service.matcher.match_donation_to_ngos')
     def test_matching_finds_none(self, mock_match):
         from agents.matching_agent import matching_agent
 
@@ -246,7 +246,7 @@ class TestMatchingAgent:
         assert len(result['matched_ngos']) == 0
         assert result['assigned_ngo_id'] is None
 
-    @patch('agents.matching_agent.match_donation_to_ngos')
+    @patch('rag_service.matcher.match_donation_to_ngos')
     def test_matching_handles_error(self, mock_match):
         from agents.matching_agent import matching_agent
 

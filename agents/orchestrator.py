@@ -4,7 +4,7 @@ Handles conditional routing and autonomous escalation.
 """
 
 import logging
-from datetime import datetime
+from django.utils import timezone
 from typing import Literal
 from langgraph.graph import StateGraph, END
 
@@ -159,7 +159,7 @@ def run_pipeline(donation_data: dict) -> dict:
         "status": "starting",
         "error_message": "",
         "decision_trail": [],
-        "started_at": datetime.now().isoformat(),
+        "started_at": timezone.now().isoformat(),
         "completed_at": "",
     }
 
@@ -169,7 +169,7 @@ def run_pipeline(donation_data: dict) -> dict:
     final_state = graph.invoke(initial_state)
 
     # Set completion time
-    final_state["completed_at"] = datetime.now().isoformat()
+    final_state["completed_at"] = timezone.now().isoformat()
 
     logger.info(f"PIPELINE: Completed — status={final_state['status']}")
     return final_state

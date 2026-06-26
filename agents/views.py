@@ -11,6 +11,7 @@ from rest_framework import permissions, status
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
+from django.db import transaction
 
 from donations.models import Donation, AgentRun
 from .orchestrator import run_pipeline
@@ -18,6 +19,7 @@ from .orchestrator import run_pipeline
 logger = logging.getLogger(__name__)
 
 
+@login_required
 def agent_dashboard_view(request):
     """Render the agent observability dashboard."""
     return render(request, 'agent_dashboard.html')
@@ -25,7 +27,7 @@ def agent_dashboard_view(request):
 
 class RunPipelineView(APIView):
     """POST /api/agents/run/ — Run the full agent pipeline on a donation."""
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         data = request.data
@@ -94,14 +96,17 @@ class RunPipelineView(APIView):
             # Update donation status if accepted
             if final_state.get("claim_accepted") and donation_id:
                 try:
-                    donation = Donation.objects.get(id=donation_id)
-                    donation.status = "claimed"
-                    donation.recipient_id = final_state.get("assigned_ngo_id")
-                    donation.claimed_at = timezone.now()
-                    donation.freshness_score = final_state.get("freshness_score", donation.freshness_score)
-                    donation.freshness_label = final_state.get("freshness_label", donation.freshness_label)
-                    donation.confidence = final_state.get("ml_confidence", donation.confidence)
-                    donation.save()
+                    with transaction.atomic():
+                        donation = Donation.objects.select_for_update().get(id=donation_id, status='pending')
+                        donation.status = "claimed"
+                        donation.recipient_id = final_state.get("assigned_ngo_id")
+                        donation.claimed_at = timezone.now()
+                        donation.freshness_score = final_state.get("freshness_score", donation.freshness_score)
+                        donation.freshness_label = final_state.get("freshness_label", donation.freshness_label)
+                        donation.confidence = final_state.get("ml_confidence", donation.confidence)
+                        donation.save()
+                except Donation.DoesNotExist:
+                    logger.warning(f"Donation {donation_id} already claimed or missing.")
                 except Exception as e:
                     logger.error(f"Failed to update donation: {e}")
 
@@ -121,14 +126,14 @@ class RunPipelineView(APIView):
         except Exception as e:
             logger.error(f"Pipeline failed: {e}")
             return Response(
-                {"success": False, "error": str(e)},
+                {"success": False, "error": "An internal error occurred while running the pipeline."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
 class AgentRunsView(APIView):
     """GET /api/agents/runs/ — List recent agent runs for observability."""
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         runs = AgentRun.objects.select_related('donation').all()[:20]

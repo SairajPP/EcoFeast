@@ -40,6 +40,7 @@ class Donation(models.Model):
     
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     claimed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -50,7 +51,8 @@ class Donation(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.food_name} - {self.freshness_label} ({self.freshness_score}%)"
+        score_display = f"{self.freshness_score}%" if self.freshness_score is not None else "N/A"
+        return f"{self.food_name} - {self.freshness_label} ({score_display})"
 
 
 class AgentRun(models.Model):
@@ -90,4 +92,5 @@ class AgentRun(models.Model):
         ]
 
     def __str__(self):
-        return f"Run for {self.donation.food_name} — {self.status}"
+        food_name = self.donation.food_name if self.donation else "N/A"
+        return f"Run for {food_name} — {self.status}"

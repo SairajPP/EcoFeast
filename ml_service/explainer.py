@@ -12,7 +12,6 @@ import joblib
 from typing import Dict, List, Optional
 from .feature_builder import FeatureBuilder
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

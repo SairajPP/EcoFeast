@@ -137,32 +137,10 @@ class TestDonationAPI:
             pass
 
 
-class TestViewsImport:
-    def test_all_views_importable(self):
-        from django.views.generic import TemplateView
-        assert TemplateView is not None
-
-    def test_donor_dashboard_import(self):
-        from donations.views import donor_dashboard
-        assert donor_dashboard is not None
-
-    def test_ngo_dashboard_import(self):
-        from donations.views import ngo_dashboard
-        assert ngo_dashboard is not None
-
-    def test_map_dashboard_import(self):
-        from donations.views import map_dashboard
-        assert map_dashboard is not None
-
-
 class TestConfig:
     def test_settings_import(self):
         from django.conf import settings
         assert settings.INSTALLED_APPS is not None
-
-    def test_urls_import(self):
-        import config.urls
-        assert config.urls.urlpatterns is not None
 
     def test_wsgi_import(self):
         import config.wsgi

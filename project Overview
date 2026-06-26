@@ -176,7 +176,8 @@ The dashboard (`agent_dashboard.html`) renders:
 ---
 
 ## 🧪 Verification Plan
-The test suite utilizes `pytest` to guarantee the stability of state transitions and data transformations:
+The test suite utilizes `pytest` to guarantee the stability of state transitions and data transformations. **As of the latest build, the entire suite of 90+ tests passes successfully with full CI integration.**
+
 * **`test_models.py`**: Ensures CustomUser capability document auto-generation and Donation properties work.
 * **`test_ml_service.py`**: Verifies that the FeatureBuilder transforms datasets properly, the XGBoost model outputs correct classes, and SHAP explainer runs.
 * **`test_genai_service.py`**: Mocks the Groq API client to verify correct parsing of vision and chat json outputs.

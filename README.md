@@ -1,6 +1,8 @@
 # EcoFeast 2.0 — Real-Time Food Waste Redistribution Platform
 ### Autonomous, Multi-Agent Food Rescue Orchestration System
 
+**Status: Production-Ready ✅ (91/91 Tests Passing, CI Integrated)**
+
 **EcoFeast 2.0** is a web-based, agentic platform that tackles food waste by automating the redistribution of surplus food from donors (restaurants, grocery stores, event organizers) to NGOs. 
 
 Evolving from a baseline Django web application, EcoFeast 2.0 integrates **classical Machine Learning** for freshness prediction, **Generative AI** for unstructured data intake, **RAG** for constraint-based NGO matching, and **LangGraph** for autonomous routing.

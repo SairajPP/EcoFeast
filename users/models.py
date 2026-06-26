@@ -100,4 +100,5 @@ class CustomUser(AbstractUser):
 
         doc = " | ".join(parts)
         self.capability_document = doc
+        self.save(update_fields=['capability_document'])
         return doc

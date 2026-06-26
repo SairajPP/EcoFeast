@@ -28,3 +28,24 @@ class PredictFreshnessView(APIView):
                 {"success": False, "error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+class ExplainView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        try:
+            data = request.data
+            explainer = get_explainer()
+
+            shap_features = explainer.explain(data, top_n=5)
+
+            return Response({
+                "success": True,
+                "shap_explanation": shap_features,
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {"success": False, "error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

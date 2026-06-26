@@ -6,3 +6,6 @@ db.sqlite3
 *.pyc
 ml_service/models/*.json
 ml_service/models/*.pkl
+donations/food_quality_model.pkl
+.vscode/
+

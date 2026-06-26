@@ -10,7 +10,7 @@ env:
   POSTGRES_DB: ecofeast
   POSTGRES_USER: ecofeast
   POSTGRES_PASSWORD: ecofeast_test
-  DATABASE_URL: postgresql://ecofeast:ecofeast_test@postgres:5432/ecofeast
+  DATABASE_URL: postgresql://ecofeast:ecofeast_test@localhost:5432/ecofeast
   GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
   DEBUG: 'false'
   SECRET_KEY: ci-fallback-key-do-not-use-in-prod
@@ -26,7 +26,8 @@ jobs:
           POSTGRES_DB: ecofeast
           POSTGRES_USER: ecofeast
           POSTGRES_PASSWORD: ecofeast_test
-        ports: 5432:5432
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U ecofeast -d ecofeast"
           --health-interval 10s
@@ -35,12 +36,14 @@ jobs:
 
       redis:
         image: redis:7-alpine
-        ports: 6379:6379
+        ports:
+          - 6379:6379
         options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
 
       qdrant:
         image: qdrant/qdrant:latest
-        ports: 6333:6333
+        ports:
+          - 6333:6333
 
     steps:
       - name: Checkout code
@@ -60,8 +63,7 @@ jobs:
 
       - name: Wait for services
         run: |
-          sleep 5
-          pg_isready -h postgres -p 5432 -U ecofeast -d ecofeast
+          pg_isready -h localhost -p 5432 -U ecofeast -d ecofeast
 
       - name: Run Django migrations
         run: python manage.py migrate --noinput
@@ -74,11 +76,7 @@ jobs:
 
       - name: Run pytest
         run: |
-          pytest -v --cov=. --cov-report=xml --cov-report=term-missing \
-            --ignore=ml_service/models \
-            --ignore=donations/migrations \
-            --ignore=users/migrations \
-            --ignore=config
+          pytest tests/ -v --cov=. --cov-report=xml --cov-report=term-missing
 
   docker-build:
     runs-on: ubuntu-latest

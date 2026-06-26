@@ -4,7 +4,7 @@ Flags suspicious donations before matching.
 """
 
 import logging
-from datetime import datetime
+from django.utils import timezone
 from typing import Dict
 from .state import DonationState
 
@@ -78,7 +78,7 @@ def verification_agent(state: DonationState) -> DonationState:
     trail_entry = {
         "agent": "verification",
         "action": "plausibility_check",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": timezone.now().isoformat(),
         "anomalies": anomalies,
         "notes": notes,
         "is_valid": is_valid,

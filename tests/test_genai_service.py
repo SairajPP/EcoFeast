@@ -9,73 +9,83 @@ class TestGenAIConfig:
     """Tests for GenAI configuration."""
 
     def test_config_import(self):
-        from genai_service.config import groq_client, VISION_MODEL, TEXT_MODEL
+        from genai_service.config import get_client, VISION_MODEL, TEXT_MODEL
         assert VISION_MODEL == "meta-llama/llama-4-scout-17b-16e-instruct"
         assert TEXT_MODEL == "llama-3.3-70b-versatile"
-        assert groq_client is not None
+        
+        # Test getting client with a mock key to avoid ValueError
+        with patch('os.getenv', return_value='fake_key'):
+            client = get_client()
+            assert client is not None
 
 
 class TestVisionIntake:
     """Tests for Vision Intake service."""
 
     def test_vision_intake_import(self):
-        from genai_service.vision_intake import vision_intake
-        assert vision_intake is not None
+        from genai_service.vision_intake import extract_from_image
+        assert extract_from_image is not None
 
-    @patch('genai_service.vision_intake.groq_client')
-    def test_vision_intake_structure(self, mock_client):
-        from genai_service.vision_intake import vision_intake
+    @patch('genai_service.vision_intake.get_client')
+    def test_vision_intake_structure(self, mock_get_client):
+        from genai_service.vision_intake import extract_from_image
 
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
         mock_response = Mock()
-        mock_response.choices = [Mock(message=Mock(content='{"food_name": "Test", "food_type": "Vegetarian", "quantity_kg": 5, "storage_condition": "refrigerated", "container_type": "plastic", "moisture_type": "dry", "cooking_method": "steamed", "texture": "soft", "smell": "neutral"}'))]
+        mock_response.choices = [Mock(message=Mock(content='{"food_name": "Test", "food_type": "Vegetarian", "estimated_quantity_kg": 5, "container_type": "plastic", "moisture_type": "dry", "texture": "soft", "cooking_method": "boiled"}'))]
         mock_client.chat.completions.create.return_value = mock_response
 
-        result = vision_intake(b"fake_image_data")
+        result = extract_from_image(b"fake_image_data")
 
         assert 'food_name' in result
         assert 'food_type' in result
-        assert 'quantity_kg' in result
+        assert 'estimated_quantity_kg' in result
 
 
 class TestChatIntake:
     """Tests for Chat Intake service."""
 
     def test_chat_intake_import(self):
-        from genai_service.chat_intake import chat_intake
-        assert chat_intake is not None
+        from genai_service.chat_intake import extract_from_text
+        assert extract_from_text is not None
 
-    @patch('genai_service.chat_intake.groq_client')
-    def test_chat_intake_structure(self, mock_client):
-        from genai_service.chat_intake import chat_intake
+    @patch('genai_service.chat_intake.get_client')
+    def test_chat_intake_structure(self, mock_get_client):
+        from genai_service.chat_intake import extract_from_text
 
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
         mock_response = Mock()
-        mock_response.choices = [Mock(message=Mock(content='{"food_name": "Test", "food_type": "Vegetarian", "quantity_kg": 5, "storage_condition": "refrigerated", "container_type": "plastic", "moisture_type": "dry", "cooking_method": "steamed", "texture": "soft", "smell": "neutral"}'))]
+        mock_response.choices = [Mock(message=Mock(content='{"food_name": "Test", "food_type": "Vegetarian", "estimated_quantity_kg": 5, "container_type": "plastic", "moisture_type": "dry", "texture": "soft", "cooking_method": "boiled"}'))]
         mock_client.chat.completions.create.return_value = mock_response
 
-        result = chat_intake("I have 5kg of fresh rice")
+        result = extract_from_text("I have 5kg of fresh rice")
 
         assert 'food_name' in result
         assert 'food_type' in result
-        assert 'quantity_kg' in result
+        assert 'estimated_quantity_kg' in result
 
 
 class TestExplainerLLM:
     """Tests for SHAP Explainer LLM."""
 
     def test_explainer_llm_import(self):
-        from genai_service.explainer_llm import explain_shap
-        assert explain_shap is not None
+        from genai_service.explainer_llm import explain_freshness
+        assert explain_freshness is not None
 
-    @patch('genai_service.explainer_llm.groq_client')
-    def test_explainer_llm_structure(self, mock_client):
-        from genai_service.explainer_llm import explain_shap
+    @patch('genai_service.explainer_llm.get_client')
+    def test_explainer_llm_structure(self, mock_get_client):
+        from genai_service.explainer_llm import explain_freshness
 
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
         mock_response = Mock()
         mock_response.choices = [Mock(message=Mock(content='The food is predicted fresh because it was stored in refrigerator.'))]
         mock_client.chat.completions.create.return_value = mock_response
 
-        shap_values = {'storage_condition_refrigerated': 0.5, 'time_since_cooking_hours': -0.2}
-        result = explain_shap(shap_values, 90, 'Fresh')
+        shap_features = [{'feature': 'storage_condition_refrigerated', 'impact': 0.5, 'direction': 'positive'}]
+        result = explain_freshness('Fresh', 90, 95.5, shap_features)
 
         assert isinstance(result, str)
         assert len(result) > 0

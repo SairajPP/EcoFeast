@@ -501,11 +501,14 @@
         document.getElementById('chat-btn').disabled = true;
 
         try {
+            // Get CSRF token
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+
             const response = await fetch('/api/genai/chat/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken'),
+                    'X-CSRFToken': csrftoken
                 },
                 body: JSON.stringify({ text }),
             });

@@ -14,11 +14,15 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-fallback-key')
+from django.core.exceptions import ImproperlyConfigured
 
-DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY or 'your_key_here' in SECRET_KEY.lower():
+    raise ImproperlyConfigured("SECRET_KEY must be securely set in the environment and must not be a default/insecure key.")
 
-ALLOWED_HOSTS = ['*']
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -37,8 +41,8 @@ INSTALLED_APPS = [
     'donations.apps.DonationsConfig',
     'ml_service.apps.MlServiceConfig',
     'genai_service.apps.GenaiServiceConfig',
-    'rag_service',
-    'agents',
+    'rag_service.apps.RagServiceConfig',
+    'agents.apps.AgentsConfig',
 ]
 
 AUTH_USER_MODEL = 'users.CustomUser'
@@ -78,13 +82,12 @@ import dj_database_url
 
 _db_url = os.getenv('DATABASE_URL', '')
 if _db_url and 'postgres' in _db_url:
-    try:
-        import psycopg2
-        psycopg2.connect(_db_url.replace('postgres://', 'postgresql://')).close()
-        DATABASES = {'default': dj_database_url.config(default=_db_url, conn_max_age=600)}
-    except Exception:
-        logger.warning("PostgreSQL not reachable — falling back to SQLite.")
-        DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'db.sqlite3'}}
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=_db_url.replace('postgres://', 'postgresql://'), 
+            conn_max_age=600
+        )
+    }
 else:
     DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'db.sqlite3'}}
 
@@ -115,12 +118,20 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
+        # BasicAuthentication removed for security
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '10/min',
+        'user': '60/min'
+    }
 }
 
 # CORS
-CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
 
 # ML Service
 ML_MODEL_DIR = os.path.join(BASE_DIR, 'ml_service', 'models')
@@ -130,3 +141,15 @@ QDRANT_URL = os.getenv('QDRANT_URL', 'http://localhost:6333')
 
 # Groq
 GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+
+# --- Production Security Hardening ---
+# These settings are only active when DEBUG=False (i.e. in production).
+# They are intentionally disabled locally to avoid breaking HTTP dev servers.
+if not DEBUG:
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', 3600))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

@@ -9,7 +9,6 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from .vision_intake import extract_from_image
 from .chat_intake import extract_from_text
-from .explainer_llm import explain_freshness
 from ml_service.explainer import get_explainer
 
 
@@ -26,13 +25,28 @@ class VisionIntakeView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Basic security checks
+        MAX_FILE_SIZE = 10 * 1024 * 1024 # 10 MB
+        if image_file.size > MAX_FILE_SIZE:
+             return Response(
+                {"success": False, "error": "File size exceeds 10MB limit"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        valid_mime_types = ['image/jpeg', 'image/png', 'image/webp']
+        if image_file.content_type not in valid_mime_types:
+             return Response(
+                {"success": False, "error": f"Invalid file type. Allowed: {', '.join(valid_mime_types)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
             image_bytes = image_file.read()
             result = extract_from_image(image_bytes, image_file.name)
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             return Response(
-                {"success": False, "error": str(e)},
+                {"success": False, "error": "An error occurred while processing the image."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -54,7 +68,7 @@ class ChatIntakeView(APIView):
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             return Response(
-                {"success": False, "error": str(e)},
+                {"success": False, "error": "An error occurred while processing the text."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -100,6 +114,6 @@ class SHAPExplanationView(APIView):
             }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response(
-                {"success": False, "error": str(e)},
+                {"success": False, "error": "An error occurred while generating the explanation."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

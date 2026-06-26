@@ -4,7 +4,8 @@ Fourth step — the key autonomy behavior.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
+from django.utils import timezone
 from typing import Dict
 from .state import DonationState
 
@@ -31,7 +32,7 @@ def logistics_agent(state: DonationState) -> DonationState:
     trail_entry = {
         "agent": "logistics",
         "action": "claim_process",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": timezone.now().isoformat(),
     }
 
     # Check if we have NGOs to try
@@ -61,6 +62,7 @@ def logistics_agent(state: DonationState) -> DonationState:
     # --- Simulate claim offer ---
     # In production: send notification via Celery task, wait for response
     # For demo: simulate acceptance based on reliability score
+    # TODO: Replace with real NGO notification logic
     import random
     reliability = ngo.get("reliability_score", 80) / 100.0
     acceptance_probability = reliability * 0.8  # 80% base chance

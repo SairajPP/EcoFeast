@@ -6,10 +6,8 @@ Combines RAG retrieval with business logic for optimal matching.
 import logging
 import math
 from typing import Dict, List, Optional
-from django.contrib.auth import get_user_model
 from .ngo_embeddings import search_similar_ngos, upsert_ngo, ensure_collection
 
-User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
@@ -112,8 +110,10 @@ def match_donation_to_ngos(
         semantic_score = candidate["score"]  # 0-1 cosine similarity
 
         try:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
             ngo = User.objects.get(id=ngo_id, role__in=["ngo", "shelter"])
-        except User.DoesNotExist:
+        except Exception: # Catch Exception since User.DoesNotExist might not be defined if get_user_model fails
             continue
 
         # Distance score
@@ -129,14 +129,14 @@ def match_donation_to_ngos(
         # Capacity score
         capacity_score = 1.0
         donation_qty = float(donation.get("quantity_kg", 0))
-        if ngo.capacity_kg and donation_qty:
+        if hasattr(ngo, 'capacity_kg') and ngo.capacity_kg and donation_qty:
             if donation_qty <= ngo.capacity_kg:
                 capacity_score = 1.0  # Fits within capacity
             else:
                 capacity_score = max(0.3, ngo.capacity_kg / donation_qty)
 
         # Reliability score (0-1)
-        reliability_score = ngo.reliability_score / 100.0
+        reliability_score = getattr(ngo, 'reliability_score', 80) / 100.0
 
         # Combined score (weighted)
         combined_score = (
