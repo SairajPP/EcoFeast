@@ -1,78 +1,126 @@
-# EcoFeast – Real-Time Food Waste Redistribution Platform
+# EcoFeast 2.0 — Real-Time Food Waste Redistribution Platform
+### Autonomous, Multi-Agent Food Rescue Orchestration System
 
-**EcoFeast** is a web-based platform that tackles food waste by creating a direct connection between businesses and individuals with surplus food and the NGOs that can distribute it to those in need. The system uses machine learning to assess food freshness and geospatial matching to optimize pickup logistics.
+**EcoFeast 2.0** is a web-based, agentic platform that tackles food waste by automating the redistribution of surplus food from donors (restaurants, grocery stores, event organizers) to NGOs. 
 
-## Problem Statement
-Millions of tons of edible food are wasted annually while communities face food insecurity. The disconnect between surplus food sources and distribution networks, combined with concerns about food safety and logistics, prevents effective redistribution. EcoFeast bridges this gap through intelligent automation and real-time coordination.
-
-## What This Project Does
-
-EcoFeast provides a complete workflow for food donation management:
-
-### For Donors (Restaurants, Grocery Stores, Event Organizers)
-* Submit surplus food listings with details about quantity, type, and storage conditions.
-* Receive AI-calculated freshness scores that factor in local weather conditions.
-* Auto-populate location data using reverse geocoding.
-* Track donation status in real-time.
-
-### For NGOs and Relief Organizations
-* View available food donations on an interactive map.
-* See freshness predictions to prioritize time-sensitive pickups.
-* Claim donations with one-click assignment.
-* Access route information for efficient collection.
-
-### Intelligent Features
-* **Machine Learning Model:** Predicts food freshness based on storage duration, temperature, and food category.
-* **Real-Time Weather:** Integration with Open-Meteo API pulls real-time local weather data to improve prediction accuracy.
-* **Hyperlocal Matching:** Geospatial matching shows nearest available donations.
-* **Live Synchronization:** Live status updates prevent double-booking of donations.
+Evolving from a baseline Django web application, EcoFeast 2.0 integrates **classical Machine Learning** for freshness prediction, **Generative AI** for unstructured data intake, **RAG** for constraint-based NGO matching, and **LangGraph** for autonomous routing.
 
 ---
 
-## Technical Architecture
+## 🌟 Key Features
 
-### Backend Infrastructure
-* **Django Framework:** Handles request routing, business logic, and database operations.
-* **RESTful API:** Endpoints for donation submission, retrieval, and status updates.
-* **Database:** SQLite for development with production-ready PostgreSQL support.
-* **Security:** Session management for user authentication and role-based access.
-
-### Machine Learning Pipeline
-* **Scikit-Learn:** Random Forest model trained on food freshness parameters.
-* **Feature Engineering:** Combines temporal data (hours since donation), environmental factors (temperature, humidity), and food-specific attributes.
-* **Data Processing:** Pandas and NumPy for preprocessing and transformation.
-* **Output:** Probability score (0-100%) indicating safe consumption window.
-
-### Frontend and Mapping
-* **Leaflet.js:** Renders interactive maps with custom markers for donors and NGOs.
-* **JavaScript:** Handles asynchronous updates for real-time status changes.
-* **OpenStreetMap API:** Provides reverse geocoding for address completion.
-* **Responsive Design:** HTML5 and CSS3 for mobile and desktop compatibility.
-
-### External API Integration
-* **Open-Meteo API:** Fetches hyperlocal weather data based on GPS coordinates.
-* **OpenStreetMap Nominatim:** Converts latitude/longitude to human-readable addresses.
+* **Multimodal GenAI Intake:** Donors can submit food listings using a photo (Vision Intake using Groq Llama Vision) or a simple conversational description (Chat Intake using Groq Llama 3 70B). The system extracts structured fields automatically with donor verification.
+* **XGBoost Freshness Prediction:** A machine learning model predicts a precise freshness score based on temporal parameters and sensory details (smell, texture, moisture).
+* **SHAP Explainability:** Surfaces feature contributions (e.g., storage time, cooking method) explaining *why* the model predicted a freshness score, translated into natural language by an LLM for NGOs.
+* **RAG-based NGO Matching:** Combines semantic profiles (dietary restrictions, operating hours, capacity) embedded via SentenceTransformers (`all-MiniLM-L6-v2`) in Qdrant with real-world distance (Haversine formula), capacity, and reliability rankings.
+* **LangGraph Multi-Agent Orchestration:** Runs an autonomous pipeline of specialized agents (Intake, Verification, Matching, Logistics) with conditional routing and self-loop escalations to re-route offers if an NGO times out or rejects the assignment.
+* **Observability Dashboard:** A real-time monitoring dashboard displaying pipeline status distributions, agent performance charts, and step-by-step decision trails.
 
 ---
 
-## Project Structure
+## 🏗️ System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      OBSERVABILITY DASHBOARD                    │
+│           (Django Templates + Chart.js Pipeline Auditing)       │
+└────────────────────────────────┬────────────────────────────────┘
+                                 │
+┌────────────────────────────────▼────────────────────────────────┐
+│             LANGGRAPH MULTI-AGENT STATE MACHINE                 │
+│  [Intake Agent] ──► [Verify Agent] ──► [Match] ──► [Logistics]  │
+└───────┬────────────────────┬─────────────┬─────────────▲────────┘
+        │                    │             │             │
+┌───────▼───────┐    ┌───────▼───────┐     │     ┌───────┴────────┐
+│   ML LAYER    │    │  GENAI LAYER  │     │     │   RAG LAYER    │
+│  XGBoost +    │    │ Llama Vision  │     │     │  SentenceTrans │
+│  SHAP Engine  │    │ + JSON Mode   │     │     │   + Qdrant     │
+└───────────────┘    └───────────────┘     │     └────────────────┘
+                                           │
+┌──────────────────────────────────────────▼──────────────────────┐
+│                  DJANGO REST API + POSTGRESQL                   │
+│          (Data Persistence, User Auth, and API Routing)         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 Repository Structure
 
 ```bash
 EcoFeast/
-├── manage.py              # Django project manager
-├── requirements.txt       # Python dependencies
-├── config/                # Project configuration
-│   ├── settings.py
-│   ├── urls.py
-│   └── wsgi.py
-├── donations/             # Main application app
-│   ├── models.py          # Database schema (Donations, Users)
-│   ├── views.py           # Business logic & Request handlers
-│   ├── ml_model.py        # Freshness prediction algorithm (Scikit-Learn)
-│   ├── urls.py            # API routing
-│   └── templates/         # HTML Frontend
-│       ├── donate.html    # Donor submission form
-│       ├── live_map.html  # Real-time pickup dashboard
-│       └── base.html      # Shared layout
-└── static/                # CSS, JS, and Images
-    └── css/
+├── config/             # Django project configuration
+├── donations/          # Core donation models, serializers, and views
+├── users/              # Custom user roles (Donors/NGOs) and capability profiles
+├── ml_service/         # Feature engineering, XGBoost training, and SHAP explainability
+├── genai_service/      # LLM-based image/text information extraction
+├── rag_service/        # Qdrant NGO profile embeddings and weighted matching
+├── agents/             # LangGraph state definition and agent node handlers
+├── templates/          # HTML templates (Dashboard, Maps, and Agent Monitoring)
+├── tests/              # Pytest test suite for ML, GenAI, RAG, and Agents
+├── Dockerfile          # Production web service dockerfile
+└── docker-compose.yml  # Local services (Django, Postgres, Redis, Qdrant)
+```
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+* Docker and Docker Compose
+* Python 3.10+ (if running locally without Docker)
+* A [Groq API Key](https://console.groq.com/) for GenAI features
+
+### Running with Docker (Recommended)
+
+1. **Clone the repository and enter the directory:**
+   ```bash
+   git clone https://github.com/SairajPP/EcoFeast.git
+   cd EcoFeast
+   ```
+
+2. **Create a `.env` file in the project root:**
+   ```env
+   DEBUG=1
+   SECRET_KEY=your_django_secret_key
+   GROQ_API_KEY=your_groq_api_key
+   POSTGRES_DB=ecofeast
+   POSTGRES_USER=ecofeast
+   POSTGRES_PASSWORD=ecofeast_dev_2026
+   QDRANT_URL=http://qdrant:6333
+   ```
+
+3. **Build and start the container services:**
+   ```bash
+   docker-compose up --build
+   ```
+   This will spin up:
+   * **Django Web Server** at `http://localhost:8000`
+   * **PostgreSQL Database** at `localhost:5432`
+   * **Redis Cache/Broker** at `localhost:6379`
+   * **Qdrant Vector DB** at `localhost:6333`
+
+4. **Run migrations and populate mock data:**
+   ```bash
+   docker-compose exec web python manage.py migrate
+   # Optional: Sync RAG profiles
+   docker-compose exec web python manage.py shell -c "from rag_service.matcher import sync_all_ngos; sync_all_ngos()"
+   ```
+
+---
+
+## 🧪 Verification & Testing
+
+The project uses `pytest` for unit and integration testing.
+
+Run all tests inside the Docker container:
+```bash
+docker-compose exec web pytest
+```
+
+The test suite covers:
+* **Models:** CustomUser profiles and Donation constraints.
+* **ML Service:** Feature transform pipelines, model predictions, and SHAP explainer runs.
+* **GenAI Service:** Llama extraction correctness and explainers (mocked API).
+* **RAG Service:** Qdrant upserts and combined distance/capacity matcher.
+* **Agents:** LangGraph StateGraph state updates, validation filters, and routing loops.
