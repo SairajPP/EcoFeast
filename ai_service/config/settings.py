@@ -135,9 +135,7 @@ CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:8000,
 ML_MODEL_DIR = os.path.join(BASE_DIR, 'ml_service', 'models')
 
 # Qdrant
-_qdrant_host = os.getenv('QDRANT_HOST', 'localhost')
-_qdrant_port = os.getenv('QDRANT_PORT', '6333')
-QDRANT_URL = f"http://{_qdrant_host}:{_qdrant_port}"
+QDRANT_URL = os.getenv('QDRANT_URL', 'http://localhost:6333')
 
 # Groq
 GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')

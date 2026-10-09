@@ -45,8 +45,12 @@ def get_client() -> QdrantClient:
         return _client
 
     qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
+    qdrant_api_key = os.getenv("QDRANT_API_KEY")
     try:
-        _client = QdrantClient(url=qdrant_url, timeout=5)
+        if qdrant_api_key:
+            _client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=10)
+        else:
+            _client = QdrantClient(url=qdrant_url, timeout=5)
         # Quick health check
         _client.get_collections()
         logger.info(f"Connected to Qdrant at {qdrant_url}")

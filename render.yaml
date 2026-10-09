@@ -36,16 +36,10 @@ services:
         fromDatabase:
           name: ecofeast-db
           property: connectionString
-      - key: QDRANT_HOST
-        fromService:
-          type: web
-          name: qdrant-server
-          property: host
-      - key: QDRANT_PORT
-        fromService:
-          type: web
-          name: qdrant-server
-          property: port
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
       - key: SECRET_KEY
         generateValue: true
 
@@ -53,13 +47,6 @@ services:
     name: ecofeast-redis
     plan: free
     ipAllowList: []
-
-  - type: web
-    name: qdrant-server
-    env: image
-    plan: free
-    image:
-      url: qdrant/qdrant:latest
 
 databases:
   - name: ecofeast-db
