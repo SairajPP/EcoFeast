@@ -56,11 +56,10 @@ services:
 
   - type: web
     name: qdrant-server
-    env: docker
+    env: image
     plan: free
-    repo: https://github.com/qdrant/qdrant
-    branch: master
-    dockerfilePath: Dockerfile
+    image:
+      url: qdrant/qdrant:latest
 
 databases:
   - name: ecofeast-db
