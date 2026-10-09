@@ -146,7 +146,6 @@ pymongo==4.17.0
 pyotp==2.9.0
 pyparsing==3.2.3
 pypdf==6.12.2
-pypiwin32==223
 pytest==9.0.3
 pytest-cov==7.1.0
 pytest-env==1.6.0
@@ -154,11 +153,9 @@ python-bidi==0.6.10
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 python-engineio==4.13.1
-python-magic-bin==0.4.14
 python-socketio==5.16.1
 pyttsx3==2.98
 pytz==2024.2
-pywin32==308
 PyYAML==6.0.3
 qrcode==8.2
 react==4.3.0
