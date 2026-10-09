@@ -15,11 +15,11 @@ services:
           type: redis
           name: ecofeast-redis
           property: connectionString
-      - key: AI_SERVICE_URL
+      - key: AI_SERVICE_HOST
         fromService:
           type: web
           name: ecofeast-ai
-          property: url
+          property: host
       - key: SECRET_KEY
         generateValue: true
 
@@ -34,11 +34,16 @@ services:
         fromDatabase:
           name: ecofeast-db
           property: connectionString
-      - key: QDRANT_URL
+      - key: QDRANT_HOST
         fromService:
-          type: web
+          type: pserv
           name: qdrant-server
-          property: url
+          property: host
+      - key: QDRANT_PORT
+        fromService:
+          type: pserv
+          name: qdrant-server
+          property: port
       - key: SECRET_KEY
         generateValue: true
 
@@ -46,7 +51,7 @@ services:
     name: ecofeast-redis
     ipAllowList: []
 
-  - type: web
+  - type: pserv
     name: qdrant-server
     env: docker
     repo: https://github.com/qdrant/qdrant

@@ -51,7 +51,8 @@ class CreateDonationView(generics.CreateAPIView):
         }
 
         try:
-            ai_url = os.environ.get('AI_SERVICE_URL', 'http://localhost:8001')
+            ai_host = os.environ.get('AI_SERVICE_HOST', 'localhost:8001')
+            ai_url = f"https://{ai_host}" if not ai_host.startswith('localhost') else f"http://{ai_host}"
             response = requests.post(f"{ai_url}/api/ml/predict/", json=ml_input, timeout=10)
             if response.status_code == 200:
                 data = response.json()
