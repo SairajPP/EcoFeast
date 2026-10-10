@@ -6,7 +6,6 @@ Uses HuggingFace all-MiniLM-L6-v2 for embeddings.
 import os
 import logging
 from typing import List, Dict, Optional
-from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     VectorParams,
@@ -17,25 +16,23 @@ from qdrant_client.models import (
     MatchValue,
 )
 
+from google import genai
+
 logger = logging.getLogger(__name__)
 
 # Config
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-COLLECTION_NAME = "ngo_profiles"
-VECTOR_DIMENSION = 384  # all-MiniLM-L6-v2 output dimension
+EMBEDDING_MODEL = "text-embedding-004"
+COLLECTION_NAME = "ngo_profiles_v2"
+VECTOR_DIMENSION = 768  # Google GenAI text-embedding-004 output dimension
 
-_model: Optional[SentenceTransformer] = None
 _client: Optional[QdrantClient] = None
+_genai_client = None
 
-
-def get_model() -> SentenceTransformer:
-    """Get or load the embedding model (singleton)."""
-    global _model
-    if _model is None:
-        logger.info(f"Loading embedding model: {EMBEDDING_MODEL}")
-        _model = SentenceTransformer(EMBEDDING_MODEL)
-        logger.info("Embedding model loaded")
-    return _model
+def get_genai_client():
+    global _genai_client
+    if _genai_client is None:
+        _genai_client = genai.Client()
+    return _genai_client
 
 
 def get_client() -> QdrantClient:
@@ -78,9 +75,16 @@ def ensure_collection():
 
 def embed_text(text: str) -> List[float]:
     """Convert text to embedding vector."""
-    model = get_model()
-    embedding = model.encode(text, normalize_embeddings=True)
-    return embedding.tolist()
+    genai_client = get_genai_client()
+    try:
+        response = genai_client.models.embed_content(
+            model=EMBEDDING_MODEL,
+            contents=text,
+        )
+        return response.embeddings[0].values
+    except Exception as e:
+        logger.error(f"GenAI Embedding Error: {e}")
+        return [0.0] * VECTOR_DIMENSION
 
 
 def upsert_ngo(ngo_id: int, capability_doc: str, metadata: Dict):
