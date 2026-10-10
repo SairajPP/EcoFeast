@@ -7,6 +7,9 @@ from rest_framework.response import Response
 from rest_framework import permissions, status
 from rest_framework.parsers import MultiPartParser, FormParser
 
+import logging
+logger = logging.getLogger(__name__)
+
 from .vision_intake import extract_from_image
 from .chat_intake import extract_from_text
 from ml_service.explainer import get_explainer
@@ -45,8 +48,9 @@ class VisionIntakeView(APIView):
             result = extract_from_image(image_bytes, image_file.name)
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
+            logger.error(f"Error in VisionIntakeView: {e}")
             return Response(
-                {"success": False, "error": "An error occurred while processing the image."},
+                {"success": False, "error": f"An error occurred while processing the image: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
