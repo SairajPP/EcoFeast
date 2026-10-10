@@ -11,7 +11,7 @@ from .matcher import match_donation_to_ngos, sync_all_ngos, sync_ngo_to_vector_s
 
 class MatchDonationView(APIView):
     """POST /api/rag/match/ — Find best-fit NGOs for a donation."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         data = request.data
@@ -51,7 +51,7 @@ class MatchDonationView(APIView):
 
 class SyncNGOsView(APIView):
     """POST /api/rag/sync/ — Sync all NGO profiles to Qdrant."""
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         try:
@@ -69,7 +69,7 @@ class SyncNGOsView(APIView):
 
 class SyncSingleNGOView(APIView):
     """POST /api/rag/sync/<ngo_id>/ — Sync a single NGO to Qdrant."""
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request, ngo_id):
         try:

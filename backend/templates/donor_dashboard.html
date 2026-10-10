@@ -440,7 +440,7 @@
         formData.append('image', file);
 
         try {
-            const response = await fetch('/api/genai/vision/', {
+            const response = await fetch('{{ AI_SERVICE_URL }}/api/genai/vision/', {
                 method: 'POST',
                 headers: { 'X-CSRFToken': getCookie('csrftoken') },
                 body: formData,
@@ -504,7 +504,7 @@
             // Get CSRF token
             const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
 
-            const response = await fetch('/api/genai/chat/', {
+            const response = await fetch('{{ AI_SERVICE_URL }}/api/genai/chat/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -7,7 +7,7 @@ import os
 from groq import Groq
 
 # Model IDs (update these as Groq deprecates models)
-VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+VISION_MODEL = "qwen/qwen3.8-27b"
 TEXT_MODEL = "llama-3.3-70b-versatile"
 
 _client: Groq | None = None

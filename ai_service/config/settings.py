@@ -8,7 +8,7 @@ import os
 import logging
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,6 @@ INSTALLED_APPS = [
     'ml_service.apps.MlServiceConfig',
     'genai_service.apps.GenaiServiceConfig',
     'rag_service.apps.RagServiceConfig',
-    'agents.apps.AgentsConfig',
 ]
 
 # AUTH_USER_MODEL removed
@@ -132,6 +131,8 @@ REST_FRAMEWORK = {
 }
 
 # CORS
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
 
 # ML Service

@@ -386,7 +386,7 @@
         el.innerHTML = '<i class="fas fa-spinner fa-spin text-blue-500"></i> <span class="text-blue-600">Loading AI analysis...</span>';
 
         try {
-            const response = await fetch('/api/genai/explain/', {
+            const response = await fetch(`{{ AI_SERVICE_URL }}/api/genai/explain/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

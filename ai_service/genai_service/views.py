@@ -14,7 +14,7 @@ from ml_service.explainer import get_explainer
 
 class VisionIntakeView(APIView):
     """POST /api/genai/vision/ — Upload food photo, get structured data."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
@@ -53,7 +53,7 @@ class VisionIntakeView(APIView):
 
 class ChatIntakeView(APIView):
     """POST /api/genai/chat/ — Free text → structured donation data."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         text = request.data.get("text", "").strip()
@@ -75,7 +75,7 @@ class ChatIntakeView(APIView):
 
 class SHAPExplanationView(APIView):
     """POST /api/genai/explain/ — Get LLM-powered SHAP explanation."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         data = request.data

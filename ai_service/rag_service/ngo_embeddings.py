@@ -13,6 +13,8 @@ from qdrant_client.models import (
     PointStruct,
     Filter,
     FieldCondition,
+    MatchValue,
+)
 import requests
 
 logger = logging.getLogger(__name__)

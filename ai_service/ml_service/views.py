@@ -6,7 +6,7 @@ from .explainer import get_explainer
 
 
 class PredictFreshnessView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         try:
@@ -30,7 +30,7 @@ class PredictFreshnessView(APIView):
             )
 
 class ExplainView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         try:

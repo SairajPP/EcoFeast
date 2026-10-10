@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, '..', 'donations', 'food_data.csv')
+DATA_PATH = os.path.join(BASE_DIR, '..', '..', 'backend', 'donations', 'food_data.csv')
 MODEL_DIR = os.path.join(BASE_DIR, 'models')
 MODEL_PATH = os.path.join(MODEL_DIR, 'freshness_xgb_v1.json')
 ENCODER_PATH = os.path.join(MODEL_DIR, 'feature_builder_v1.pkl')
