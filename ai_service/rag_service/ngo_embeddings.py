@@ -13,26 +13,18 @@ from qdrant_client.models import (
     PointStruct,
     Filter,
     FieldCondition,
-    MatchValue,
-)
-
-from google import genai
+import requests
 
 logger = logging.getLogger(__name__)
 
 # Config
-EMBEDDING_MODEL = "text-embedding-004"
-COLLECTION_NAME = "ngo_profiles_v2"
-VECTOR_DIMENSION = 768  # Google GenAI text-embedding-004 output dimension
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+COLLECTION_NAME = "ngo_profiles"
+VECTOR_DIMENSION = 384  # all-MiniLM-L6-v2 output dimension
+
+HF_API_URL = f"https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/{EMBEDDING_MODEL}"
 
 _client: Optional[QdrantClient] = None
-_genai_client = None
-
-def get_genai_client():
-    global _genai_client
-    if _genai_client is None:
-        _genai_client = genai.Client()
-    return _genai_client
 
 
 def get_client() -> QdrantClient:
@@ -74,17 +66,23 @@ def ensure_collection():
 
 
 def embed_text(text: str) -> List[float]:
-    """Convert text to embedding vector."""
-    genai_client = get_genai_client()
+    """Convert text to embedding vector using HuggingFace Inference API."""
+    hf_key = os.getenv("HF_API_KEY", "")
+    headers = {"Authorization": f"Bearer {hf_key}"} if hf_key else {}
+    
     try:
-        response = genai_client.models.embed_content(
-            model=EMBEDDING_MODEL,
-            contents=text,
-        )
-        return response.embeddings[0].values
+        response = requests.post(HF_API_URL, headers=headers, json={"inputs": text}, timeout=15)
+        if response.status_code == 200:
+            result = response.json()
+            if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
+                return result[0]
+            return result
+        else:
+            logger.error(f"HF API returned status {response.status_code}: {response.text}")
     except Exception as e:
-        logger.error(f"GenAI Embedding Error: {e}")
-        return [0.0] * VECTOR_DIMENSION
+        logger.error(f"HF API Network Error: {e}")
+        
+    return [0.0] * VECTOR_DIMENSION
 
 
 def upsert_ngo(ngo_id: int, capability_doc: str, metadata: Dict):
