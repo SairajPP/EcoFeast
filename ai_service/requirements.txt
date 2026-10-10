@@ -181,7 +181,6 @@ scipy
 sentence-transformers
 sentry-sdk==2.63.0
 setuptools==75.8.0
-shap==0.52.0
 simple-websocket==1.1.0
 six==1.17.0
 sklearn-compat==0.1.5
